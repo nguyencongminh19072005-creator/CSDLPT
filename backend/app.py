@@ -150,7 +150,8 @@ def get_lop_hoc_phan():
     ma_co_so = request.args.get("ma_co_so")
     ma_khoa = request.args.get("ma_khoa")
     try:
-        query = """
+        # 1. Định nghĩa Query Local
+        query_local = """
             SELECT lhp.ma_lop_hp, lhp.ma_hp, hp.ten_hp AS ten_hoc_phan,
                    lhp.ma_gv, gv.ho_ten AS ten_giang_vien,
                    lhp.ma_phong, ph.ten_phong,
@@ -165,6 +166,24 @@ def get_lop_hoc_phan():
             LEFT JOIN phong_hoc ph ON lhp.ma_phong = ph.ma_phong
             LEFT JOIN co_so cs ON lhp.ma_co_so = cs.ma_co_so
         """
+        
+        # 2. Định nghĩa Query Remote (Chọc qua Hà Đông)
+        query_remote = """
+            SELECT lhp.ma_lop_hp, lhp.ma_hp, hp.ten_hp AS ten_hoc_phan,
+                   lhp.ma_gv, gv.ho_ten AS ten_giang_vien,
+                   lhp.ma_phong, ph.ten_phong,
+                   lhp.ma_co_so, cs.ten_co_so,
+                   lhp.hoc_ky, lhp.nam_hoc,
+                   lhp.si_so_toi_da, lhp.so_luong_da_dang_ky,
+                   (lhp.si_so_toi_da - lhp.so_luong_da_dang_ky) AS con_trong,
+                   hp.ma_khoa
+            FROM [LINK_TRUNGTAM].[QLDT_HADONG].[dbo].lop_hoc_phan lhp
+            LEFT JOIN [LINK_TRUNGTAM].[QLDT_HADONG].[dbo].hoc_phan hp ON lhp.ma_hp = hp.ma_hp
+            LEFT JOIN [LINK_TRUNGTAM].[QLDT_HADONG].[dbo].giang_vien gv ON lhp.ma_gv = gv.ma_gv
+            LEFT JOIN [LINK_TRUNGTAM].[QLDT_HADONG].[dbo].phong_hoc ph ON lhp.ma_phong = ph.ma_phong
+            LEFT JOIN [LINK_TRUNGTAM].[QLDT_HADONG].[dbo].co_so cs ON lhp.ma_co_so = cs.ma_co_so
+        """
+
         conditions = []
         params = []
         if ma_co_so:
@@ -173,18 +192,37 @@ def get_lop_hoc_phan():
         if ma_khoa:
             conditions.append("hp.ma_khoa = ?")
             params.append(ma_khoa)
+            
+        where_clause = ""
         if conditions:
-            query += " WHERE " + " AND ".join(conditions)
-        query += " ORDER BY lhp.ma_lop_hp"
-        lop_hp = execute_query(query, params if params else None)
+            where_clause = " WHERE " + " AND ".join(conditions)
 
-        # Lay lich hoc cho tat ca lop
-        lich = execute_query("""
-            SELECT lh.ma_lop_hp, lh.thu, lh.tiet_bat_dau, lh.tiet_ket_thuc,
-                   lh.ma_phong, ph.ten_phong
-            FROM lich_hoc lh
-            LEFT JOIN phong_hoc ph ON lh.ma_phong = ph.ma_phong
-        """)
+        # 3. Logic THÔNG MINH: Thử gọi Remote trước nếu là máy con
+        lop_hp = None
+        lich = None
+        
+        if SITE_CODE != "HD":
+            try:
+                lop_hp = execute_query(query_remote + where_clause + " ORDER BY hp.ten_hp ASC, lhp.ma_lop_hp ASC", params if params else None)
+                lich = execute_query("""
+                    SELECT lh.ma_lop_hp, lh.thu, lh.tiet_bat_dau, lh.tiet_ket_thuc,
+                           lh.ma_phong, ph.ten_phong
+                    FROM [LINK_TRUNGTAM].[QLDT_HADONG].[dbo].lich_hoc lh
+                    LEFT JOIN [LINK_TRUNGTAM].[QLDT_HADONG].[dbo].phong_hoc ph ON lh.ma_phong = ph.ma_phong
+                """)
+            except Exception as e:
+                print("Lỗi Linked Server, Fallback về Local:", e)
+                lop_hp = None # Fallback
+                
+        # 4. Fallback về Local nếu là máy HD hoặc Remote bị lỗi (Hà Đông sập)
+        if lop_hp is None:
+            lop_hp = execute_query(query_local + where_clause + " ORDER BY hp.ten_hp ASC, lhp.ma_lop_hp ASC", params if params else None)
+            lich = execute_query("""
+                SELECT lh.ma_lop_hp, lh.thu, lh.tiet_bat_dau, lh.tiet_ket_thuc,
+                       lh.ma_phong, ph.ten_phong
+                FROM lich_hoc lh
+                LEFT JOIN phong_hoc ph ON lh.ma_phong = ph.ma_phong
+            """)
 
         # Map lich hoc theo ma_lop_hp
         lich_map = {}
@@ -300,12 +338,20 @@ def api_huy_dang_ky():
         
         # Chuyển hướng SP tùy theo chạy ở máy nào
         sp_name = "sp_HuyDangKyHocPhan_TrungTam" if SITE_CODE == "HD" else "sp_HuyDangKyHocPhan"
+        
+        # Thuc thi SP
         cursor.execute(f"EXEC {sp_name} @ma_sv=?, @ma_lop_hp=?", (ma_sv, ma_lop_hp))
         
-        # SP tra ve result set: SELECT N'Hủy...' AS message
-        row = cursor.fetchone()
+        # SP moi khong tra ve SELECT (chi DELETE va UPDATE), nen thu fetchone co the loi
+        msg = "Hủy thành công."
+        try:
+            row = cursor.fetchone()
+            if row and row[0]:
+                msg = str(row[0])
+        except pyodbc.ProgrammingError:
+            pass # Khong co ket qua tra ve
+
         conn.commit()
-        msg = str(row[0]) if row and row[0] else "Hủy thành công."
         cursor.close()
         conn.close()
 
@@ -541,13 +587,14 @@ def truy_van_phan_tan():
         conn = get_connection()
         cursor = conn.cursor()
         cursor.execute("""
-            SELECT TOP 20 sv.ma_sv, sv.ho_ten, sv.ma_co_so,
+            SELECT TOP 100 sv.ma_sv, sv.ho_ten, sv.ma_co_so,
                    dk.ma_lop_hp, hp.ten_hp
             FROM [LINK_TRUNGTAM].[QLDT_HADONG].[dbo].sinh_vien sv
             LEFT JOIN [LINK_TRUNGTAM].[QLDT_HADONG].[dbo].dang_ky dk ON sv.ma_sv = dk.ma_sv
             LEFT JOIN [LINK_TRUNGTAM].[QLDT_HADONG].[dbo].lop_hoc_phan lhp ON dk.ma_lop_hp = lhp.ma_lop_hp
             LEFT JOIN [LINK_TRUNGTAM].[QLDT_HADONG].[dbo].hoc_phan hp ON lhp.ma_hp = hp.ma_hp
-            WHERE sv.ma_co_so = N'CS_CG'
+            WHERE dk.ma_lop_hp IS NOT NULL
+            ORDER BY sv.ma_co_so ASC, hp.ten_hp ASC, sv.ma_sv ASC
         """)
         cols = [c[0] for c in cursor.description]
         rows = [dict(zip(cols, r)) for r in cursor.fetchall()]
