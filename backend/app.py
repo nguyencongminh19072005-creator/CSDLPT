@@ -407,6 +407,45 @@ def get_tkb(ma_sv):
 
 
 # ============================================================
+#  DANG KY DAY (GIANG VIEN) - GOI SP
+# ============================================================
+@app.route("/api/dang-ky-day", methods=["POST"])
+def api_dang_ky_day():
+    data = request.get_json()
+    ma_gv = data.get("ma_gv", "").strip()
+    ma_lop_hp = data.get("ma_lop_hp", "").strip()
+
+    if not ma_gv or not ma_lop_hp:
+        return jsonify({"success": False, "message": "Thiếu thông tin."}), 400
+
+    # Nếu ở máy khác, bạn có thể cần đổi tên SP (ví dụ sp_DangKyLichDay_GiangVien_Remote)
+    sp_name = "sp_DangKyLichDay_GiangVien"
+    result = execute_procedure(sp_name, (ma_gv, ma_lop_hp))
+
+    if result["success"]:
+        _log(ma_gv, "DANG_KY_DAY", f"GV {ma_gv} đăng ký dạy {ma_lop_hp}")
+
+    return jsonify(result), 200 if result["success"] else 400
+
+@app.route("/api/huy-day", methods=["POST"])
+def api_huy_day():
+    data = request.get_json()
+    ma_gv = data.get("ma_gv", "").strip()
+    ma_lop_hp = data.get("ma_lop_hp", "").strip()
+
+    if not ma_gv or not ma_lop_hp:
+        return jsonify({"success": False, "message": "Thiếu thông tin."}), 400
+
+    sp_name = "sp_HuyDangKyLichDay_GiangVien"
+    result = execute_procedure(sp_name, (ma_gv, ma_lop_hp))
+
+    if result["success"]:
+        _log(ma_gv, "HUY_DAY", f"GV {ma_gv} hủy dạy {ma_lop_hp}")
+
+    return jsonify(result), 200 if result["success"] else 400
+
+
+# ============================================================
 #  LICH DAY GIANG VIEN
 # ============================================================
 @app.route("/api/lich-day/<ma_gv>", methods=["GET"])
@@ -579,32 +618,219 @@ def get_nhat_ky():
 
 
 # ============================================================
-#  TRUY VAN PHAN TAN
+#  TRUY VAN PHAN TAN (5 YÊU CẦU NÂNG CAO)
 # ============================================================
-@app.route("/api/tru-van-phan-tan", methods=["GET"])
-def truy_van_phan_tan():
+@app.route("/api/tru-van-phan-tan/<int:loai>", methods=["GET"])
+def truy_van_phan_tan_nang_cao(loai):
     try:
         conn = get_connection()
         cursor = conn.cursor()
-        cursor.execute("""
-            SELECT TOP 100 sv.ma_sv, sv.ho_ten, sv.ma_co_so,
-                   dk.ma_lop_hp, hp.ten_hp
-            FROM [LINK_TRUNGTAM].[QLDT_HADONG].[dbo].sinh_vien sv
-            LEFT JOIN [LINK_TRUNGTAM].[QLDT_HADONG].[dbo].dang_ky dk ON sv.ma_sv = dk.ma_sv
-            LEFT JOIN [LINK_TRUNGTAM].[QLDT_HADONG].[dbo].lop_hoc_phan lhp ON dk.ma_lop_hp = lhp.ma_lop_hp
-            LEFT JOIN [LINK_TRUNGTAM].[QLDT_HADONG].[dbo].hoc_phan hp ON lhp.ma_hp = hp.ma_hp
-            WHERE dk.ma_lop_hp IS NOT NULL
-            ORDER BY sv.ma_co_so ASC, hp.ten_hp ASC, sv.ma_sv ASC
-        """)
+        
+        # Ghi chú: Sử dụng SITE_HD, SITE_CG, SITE_NT theo đúng yêu cầu.
+        # Nếu máy hiện tại là Hà Đông, thì SITE_HD chính là db cục bộ (có thể bỏ chữ [SITE_HD]. đi)
+        # Tuy nhiên để giữ đúng nguyên bản kịch bản phân tán, ta giữ nguyên cấu trúc truy vấn.
+        # Đã sửa ma_lhp thành ma_lop_hp cho khớp với CSDL thực tế.
+        
+        if loai == 1:
+            query = """
+            SELECT N'Hà Đông' AS ten_co_so, COUNT(*) AS so_luot_dang_ky
+            FROM [SITE_HD].[QLDT_HADONG].dbo.dang_ky
+            UNION ALL
+            SELECT N'Cầu Giấy' AS ten_co_so, COUNT(*) AS so_luot_dang_ky
+            FROM [SITE_CG].[QLDT_CauGiay].dbo.dang_ky
+            UNION ALL
+            SELECT N'Ngọc Trục' AS ten_co_so, COUNT(*) AS so_luot_dang_ky
+            FROM [SITE_NT].[QLDT_NT].dbo.dang_ky;
+            """
+        elif loai == 2:
+            query = """
+            WITH tat_ca_dang_ky AS (
+                SELECT hp.ma_hp, hp.ten_hp, COUNT(dk.ma_sv) AS so_luot_dang_ky
+                FROM [SITE_HD].[QLDT_HADONG].dbo.lop_hoc_phan lhp
+                JOIN [SITE_HD].[QLDT_HADONG].dbo.hoc_phan hp ON lhp.ma_hp = hp.ma_hp
+                LEFT JOIN [SITE_HD].[QLDT_HADONG].dbo.dang_ky dk ON lhp.ma_lop_hp = dk.ma_lop_hp
+                GROUP BY hp.ma_hp, hp.ten_hp
+                UNION ALL
+                SELECT hp.ma_hp, hp.ten_hp, COUNT(dk.ma_sv) AS so_luot_dang_ky
+                FROM [SITE_CG].[QLDT_CauGiay].dbo.lop_hoc_phan lhp
+                JOIN [SITE_CG].[QLDT_CauGiay].dbo.hoc_phan hp ON lhp.ma_hp = hp.ma_hp
+                LEFT JOIN [SITE_CG].[QLDT_CauGiay].dbo.dang_ky dk ON lhp.ma_lop_hp = dk.ma_lop_hp
+                GROUP BY hp.ma_hp, hp.ten_hp
+                UNION ALL
+                SELECT hp.ma_hp, hp.ten_hp, COUNT(dk.ma_sv) AS so_luot_dang_ky
+                FROM [SITE_NT].[QLDT_NT].dbo.lop_hoc_phan lhp
+                JOIN [SITE_NT].[QLDT_NT].dbo.hoc_phan hp ON lhp.ma_hp = hp.ma_hp
+                LEFT JOIN [SITE_NT].[QLDT_NT].dbo.dang_ky dk ON lhp.ma_lop_hp = dk.ma_lop_hp
+                GROUP BY hp.ma_hp, hp.ten_hp
+            )
+            SELECT TOP 1 ma_hp, ten_hp, SUM(so_luot_dang_ky) AS tong_so_luot_dang_ky
+            FROM tat_ca_dang_ky
+            GROUP BY ma_hp, ten_hp
+            ORDER BY tong_so_luot_dang_ky DESC;
+            """
+        elif loai == 3:
+            query = """
+            WITH tat_ca_sinh_vien AS (
+                SELECT ma_sv, ho_ten, ma_co_so AS co_so_sinh_vien FROM [SITE_HD].[QLDT_HADONG].dbo.sinh_vien
+                UNION ALL
+                SELECT ma_sv, ho_ten, ma_co_so AS co_so_sinh_vien FROM [SITE_CG].[QLDT_CauGiay].dbo.sinh_vien
+                UNION ALL
+                SELECT ma_sv, ho_ten, ma_co_so AS co_so_sinh_vien FROM [SITE_NT].[QLDT_NT].dbo.sinh_vien
+            ),
+            tat_ca_dang_ky AS (
+                SELECT dk.ma_sv, dk.ma_lop_hp FROM [SITE_HD].[QLDT_HADONG].dbo.dang_ky dk
+                UNION ALL
+                SELECT dk.ma_sv, dk.ma_lop_hp FROM [SITE_CG].[QLDT_CauGiay].dbo.dang_ky dk
+                UNION ALL
+                SELECT dk.ma_sv, dk.ma_lop_hp FROM [SITE_NT].[QLDT_NT].dbo.dang_ky dk
+            ),
+            tat_ca_lop AS (
+                SELECT lhp.ma_lop_hp, lhp.ma_hp, lhp.ma_co_so AS co_so_lop, hp.ten_hp
+                FROM [SITE_HD].[QLDT_HADONG].dbo.lop_hoc_phan lhp
+                JOIN [SITE_HD].[QLDT_HADONG].dbo.hoc_phan hp ON lhp.ma_hp = hp.ma_hp
+                UNION ALL
+                SELECT lhp.ma_lop_hp, lhp.ma_hp, lhp.ma_co_so AS co_so_lop, hp.ten_hp
+                FROM [SITE_CG].[QLDT_CauGiay].dbo.lop_hoc_phan lhp
+                JOIN [SITE_CG].[QLDT_CauGiay].dbo.hoc_phan hp ON lhp.ma_hp = hp.ma_hp
+                UNION ALL
+                SELECT lhp.ma_lop_hp, lhp.ma_hp, lhp.ma_co_so AS co_so_lop, hp.ten_hp
+                FROM [SITE_NT].[QLDT_NT].dbo.lop_hoc_phan lhp
+                JOIN [SITE_NT].[QLDT_NT].dbo.hoc_phan hp ON lhp.ma_hp = hp.ma_hp
+            )
+            SELECT DISTINCT sv.ma_sv, sv.ho_ten, sv.co_so_sinh_vien, lhp.ma_lop_hp, lhp.ten_hp, lhp.co_so_lop
+            FROM tat_ca_sinh_vien sv
+            JOIN tat_ca_dang_ky dk ON sv.ma_sv = dk.ma_sv
+            JOIN tat_ca_lop lhp ON dk.ma_lop_hp = lhp.ma_lop_hp
+            WHERE sv.co_so_sinh_vien <> lhp.co_so_lop;
+            """
+        elif loai == 4:
+            query = """
+            WITH tat_ca_lop AS (
+                SELECT N'Hà Đông' AS ten_co_so, lhp.ma_lop_hp, hp.ten_hp, lhp.si_so_toi_da, COUNT(dk.ma_sv) AS so_sv_dang_ky
+                FROM [SITE_HD].[QLDT_HADONG].dbo.lop_hoc_phan lhp
+                JOIN [SITE_HD].[QLDT_HADONG].dbo.hoc_phan hp ON lhp.ma_hp = hp.ma_hp
+                LEFT JOIN [SITE_HD].[QLDT_HADONG].dbo.dang_ky dk ON lhp.ma_lop_hp = dk.ma_lop_hp
+                GROUP BY lhp.ma_lop_hp, hp.ten_hp, lhp.si_so_toi_da
+                UNION ALL
+                SELECT N'Cầu Giấy' AS ten_co_so, lhp.ma_lop_hp, hp.ten_hp, lhp.si_so_toi_da, COUNT(dk.ma_sv) AS so_sv_dang_ky
+                FROM [SITE_CG].[QLDT_CauGiay].dbo.lop_hoc_phan lhp
+                JOIN [SITE_CG].[QLDT_CauGiay].dbo.hoc_phan hp ON lhp.ma_hp = hp.ma_hp
+                LEFT JOIN [SITE_CG].[QLDT_CauGiay].dbo.dang_ky dk ON lhp.ma_lop_hp = dk.ma_lop_hp
+                GROUP BY lhp.ma_lop_hp, hp.ten_hp, lhp.si_so_toi_da
+                UNION ALL
+                SELECT N'Ngọc Trục' AS ten_co_so, lhp.ma_lop_hp, hp.ten_hp, lhp.si_so_toi_da, COUNT(dk.ma_sv) AS so_sv_dang_ky
+                FROM [SITE_NT].[QLDT_NT].dbo.lop_hoc_phan lhp
+                JOIN [SITE_NT].[QLDT_NT].dbo.hoc_phan hp ON lhp.ma_hp = hp.ma_hp
+                LEFT JOIN [SITE_NT].[QLDT_NT].dbo.dang_ky dk ON lhp.ma_lop_hp = dk.ma_lop_hp
+                GROUP BY lhp.ma_lop_hp, hp.ten_hp, lhp.si_so_toi_da
+            )
+            SELECT ten_co_so, ma_lop_hp AS ma_lhp, ten_hp, so_sv_dang_ky, si_so_toi_da, 
+                   ROUND(so_sv_dang_ky * 100.0 / si_so_toi_da, 2) AS ty_le_lap_day
+            FROM tat_ca_lop
+            ORDER BY ten_co_so, ma_lop_hp;
+            """
+        elif loai == 5:
+            query = """
+            WITH tat_ca_lop AS (
+                SELECT N'Hà Đông' AS ten_co_so, k.ma_khoa, k.ten_khoa, COUNT(lhp.ma_lop_hp) AS so_lop_mo
+                FROM [SITE_HD].[QLDT_HADONG].dbo.lop_hoc_phan lhp
+                JOIN [SITE_HD].[QLDT_HADONG].dbo.hoc_phan hp ON lhp.ma_hp = hp.ma_hp
+                JOIN [SITE_HD].[QLDT_HADONG].dbo.khoa k ON hp.ma_khoa = k.ma_khoa
+                GROUP BY k.ma_khoa, k.ten_khoa
+                UNION ALL
+                SELECT N'Cầu Giấy' AS ten_co_so, k.ma_khoa, k.ten_khoa, COUNT(lhp.ma_lop_hp) AS so_lop_mo
+                FROM [SITE_CG].[QLDT_CauGiay].dbo.lop_hoc_phan lhp
+                JOIN [SITE_CG].[QLDT_CauGiay].dbo.hoc_phan hp ON lhp.ma_hp = hp.ma_hp
+                JOIN [SITE_CG].[QLDT_CauGiay].dbo.khoa k ON hp.ma_khoa = k.ma_khoa
+                GROUP BY k.ma_khoa, k.ten_khoa
+                UNION ALL
+                SELECT N'Ngọc Trục' AS ten_co_so, k.ma_khoa, k.ten_khoa, COUNT(lhp.ma_lop_hp) AS so_lop_mo
+                FROM [SITE_NT].[QLDT_NT].dbo.lop_hoc_phan lhp
+                JOIN [SITE_NT].[QLDT_NT].dbo.hoc_phan hp ON lhp.ma_hp = hp.ma_hp
+                JOIN [SITE_NT].[QLDT_NT].dbo.khoa k ON hp.ma_khoa = k.ma_khoa
+                GROUP BY k.ma_khoa, k.ten_khoa
+            )
+            SELECT ten_co_so, ma_khoa, ten_khoa, so_lop_mo
+            FROM tat_ca_lop
+            ORDER BY ten_co_so, ma_khoa;
+            """
+        else:
+            return jsonify({"success": False, "message": "Loại truy vấn không hợp lệ"}), 400
+
+        # ÁNH XẠ TÊN LINKED SERVER THỰC TẾ TRÊN MÁY BẠN
+        # Hà Đông là máy Cục bộ (Local) -> Xóa chữ [SITE_HD]. đi để chạy thẳng vào CSDL cục bộ
+        query = query.replace("[SITE_HD].", "")
+        
+        # Giữ nguyên tên SITE_CG, SITE_NT vì bạn đã tạo đúng tên này trong SSMS
+        query = query.replace("[SITE_CG]", "[SITE_CG]")
+        query = query.replace("[SITE_NT]", "[SITE_NT]")
+
+        # Mẹo: Đôi khi chạy thật sẽ bị lỗi vì chưa Add Linked Server SITE_HD, SITE_CG, SITE_NT
+        # Nên ta dùng thủ thuật replace nếu đang chạy cục bộ để tránh crash:
+        # Nếu muốn thử nghiệm ko lỗi thì mở comment đoạn dưới:
+        # query = query.replace("[SITE_HD].[QLDT_HADONG].dbo.", "")
+        # query = query.replace("[SITE_CG].[QLDT_CauGiay].dbo.", "")
+        # query = query.replace("[SITE_NT].[QLDT_NT].dbo.", "")
+
+        cursor.execute(query)
         cols = [c[0] for c in cursor.description]
         rows = [dict(zip(cols, r)) for r in cursor.fetchall()]
         cursor.close(); conn.close()
         return jsonify({"success": True, "data": rows})
     except pyodbc.Error as ex:
         msg = str(ex.args[1]) if len(ex.args) > 1 else str(ex)
-        return jsonify({"success": False, "message": msg}), 500
+        return jsonify({"success": False, "message": f"Lỗi SQL: {msg}"}), 500
     except Exception as e:
         return jsonify({"success": False, "message": str(e)}), 500
+
+
+# ============================================================
+#  CRUD CHUNG (ADMIN)
+# ============================================================
+@app.route("/api/crud/<table>", methods=["POST", "PUT", "DELETE"])
+def api_crud(table):
+    ALLOWED_TABLES = ["co_so", "khoa", "sinh_vien", "giang_vien", "hoc_phan", "lop_hoc_phan", "phong_hoc", "lich_hoc"]
+    if table not in ALLOWED_TABLES:
+        return jsonify({"success": False, "message": "Bảng không hợp lệ."}), 400
+
+    data = request.get_json() or {}
+    pk_col = data.get("pk_col")
+    pk_val = data.get("pk_val")
+    fields = data.get("fields", {})
+
+    try:
+        if request.method == "POST":
+            if not fields: return jsonify({"success": False, "message": "Dữ liệu trống"}), 400
+            cols = ", ".join(fields.keys())
+            places = ", ".join(["?" for _ in fields])
+            sql = f"INSERT INTO {table} ({cols}) VALUES ({places})"
+            execute_query(sql, tuple(fields.values()), fetch=False)
+            return jsonify({"success": True, "message": "Thêm thành công."})
+            
+        elif request.method == "PUT":
+            if not fields or not pk_col or not pk_val: return jsonify({"success": False, "message": "Thiếu dữ liệu"}), 400
+            set_clause = ", ".join([f"{k}=?" for k in fields.keys()])
+            sql = f"UPDATE {table} SET {set_clause} WHERE {pk_col}=?"
+            params = tuple(fields.values()) + (pk_val,)
+            execute_query(sql, params, fetch=False)
+            return jsonify({"success": True, "message": "Cập nhật thành công."})
+            
+        elif request.method == "DELETE":
+            if not pk_col or not pk_val: return jsonify({"success": False, "message": "Thiếu dữ liệu"}), 400
+            # Giảng viên và Sinh viên thì dùng cờ xóa mềm (da_xoa)
+            if table in ["sinh_vien", "giang_vien"]:
+                sql = f"UPDATE {table} SET da_xoa=1 WHERE {pk_col}=?"
+            else:
+                sql = f"DELETE FROM {table} WHERE {pk_col}=?"
+            execute_query(sql, (pk_val,), fetch=False)
+            return jsonify({"success": True, "message": "Xóa thành công."})
+
+    except pyodbc.Error as ex:
+        msg = str(ex.args[1]) if len(ex.args) > 1 else str(ex)
+        return jsonify({"success": False, "message": msg}), 400
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)}), 400
+
 
 
 # ============================================================
