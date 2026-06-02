@@ -297,10 +297,10 @@ def api_dang_ky_demo_barrier():
                     cursor.execute(f"EXEC {sp_local} @ma_sv=?, @ma_lop_hp=?", (sv, ma_lop_hp))
                     conn.commit()
                     with lock:
-                        results[sv] = {"success": True, "message": "[KẾT NỐI DỰ PHÒNG] Đăng ký thành công"}
+                        results[sv] = {"success": True, "message": "Đăng ký thành công"}
                 except pyodbc.Error as ex_local:
                     if conn: conn.rollback()
-                    msg_local = "[KẾT NỐI DỰ PHÒNG] " + (str(ex_local.args[1]) if len(ex_local.args) > 1 else str(ex_local))
+                    msg_local = str(ex_local.args[1]) if len(ex_local.args) > 1 else str(ex_local)
                     with lock:
                         results[sv] = {"success": False, "message": msg_local}
             else:
@@ -355,10 +355,10 @@ def api_dang_ky_demo():
                 cursor.execute(f"EXEC {sp_local} @ma_sv=?, @ma_lop_hp=?", (ma_sv, ma_lop_hp))
                 conn.commit()
                 _log(ma_sv, "DANG_KY_DEMO", f"SV {ma_sv} cướp slot {ma_lop_hp} THÀNH CÔNG (DỰ PHÒNG)")
-                return jsonify({"success": True, "message": "[KẾT NỐI DỰ PHÒNG] Đăng ký thành công"}), 200
+                return jsonify({"success": True, "message": "Đăng ký thành công"}), 200
             except pyodbc.Error as ex_local:
                 if conn: conn.rollback()
-                msg = "[KẾT NỐI DỰ PHÒNG] " + (str(ex_local.args[1]) if len(ex_local.args) > 1 else str(ex_local))
+                msg = str(ex_local.args[1]) if len(ex_local.args) > 1 else str(ex_local)
                 
         _log(ma_sv, "DANG_KY_DEMO", f"SV {ma_sv} cướp slot {ma_lop_hp} THẤT BẠI: {msg}")
         return jsonify({"success": False, "message": msg}), 400
@@ -431,11 +431,11 @@ def api_huy_dang_ky():
                 cursor.execute(f"EXEC {sp_local} @ma_sv=?, @ma_lop_hp=?", (ma_sv, ma_lop_hp))
                 conn.commit()
                 _log(ma_sv, "HUY_DANG_KY", f"SV {ma_sv} hủy {ma_lop_hp} (DỰ PHÒNG)")
-                return jsonify({"success": True, "message": "[KẾT NỐI DỰ PHÒNG] Hủy thành công."}), 200
+                return jsonify({"success": True, "message": "Hủy thành công."}), 200
             except pyodbc.Error as ex_local:
                 if 'conn' in locals() and conn:
                     conn.rollback()
-                msg_local = "[KẾT NỐI DỰ PHÒNG] " + (str(ex_local.args[1]) if len(ex_local.args) > 1 else str(ex_local))
+                msg_local = str(ex_local.args[1]) if len(ex_local.args) > 1 else str(ex_local)
                 return jsonify({"success": False, "message": msg_local}), 400
                 
         return jsonify({"success": False, "message": msg}), 400
