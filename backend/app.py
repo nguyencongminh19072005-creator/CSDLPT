@@ -344,12 +344,33 @@ def api_dang_ky_demo():
 
         # 2. CƠ CHẾ DỰ PHÒNG (FAULT TOLERANCE): Nếu đứt cáp/timeout Linked Server lên Trung tâm
         if SITE_CODE != "HD" and ("timeout" in msg.lower() or "linked server" in msg.lower() or "network" in msg.lower() or "provider" in msg.lower() or "rpc" in msg.lower()):
-            # Khởi động Kế hoạch B: Chạy Stored Procedure cục bộ của cơ sở đó
-            sp_local = "sp_DangKyHocPhan_Local_CG" if SITE_CODE == "CG" else "sp_DangKyHocPhan_Local_NT"
+            
+            # Tự động xác định SP cục bộ dựa theo Cơ sở của Sinh viên (thay vì cố định theo SITE_CODE)
+            sp_local = "sp_DangKyHocPhan_Local_NT" # Mặc định
+            try:
+                # Tìm xem sinh viên này thuộc cơ sở nào
+                cursor.execute("SELECT ma_co_so FROM sinh_vien WHERE ma_sv = ?", (ma_sv,))
+                sv_row = cursor.fetchone()
+                if not sv_row:
+                    # Nếu không có ở DB hiện tại, thử tìm chéo sang DB kia
+                    linked_srv = "SITE_CG" if SITE_CODE == "NT" else "SITE_NT"
+                    linked_db = "QLDT_CauGiay" if SITE_CODE == "NT" else "QLDT_NT"
+                    cursor.execute(f"SELECT ma_co_so FROM [{linked_srv}].[{linked_db}].dbo.sinh_vien WHERE ma_sv = ?", (ma_sv,))
+                    sv_row = cursor.fetchone()
+                
+                # Nếu phát hiện là sinh viên Cầu Giấy thì gọi SP của Cầu Giấy
+                if sv_row and sv_row[0] == 'CS_CG':
+                    sp_local = "sp_DangKyHocPhan_Local_CG"
+                elif sv_row and sv_row[0] == 'CS_NT':
+                    sp_local = "sp_DangKyHocPhan_Local_NT"
+            except Exception:
+                # Nếu có lỗi khi tìm kiếm, Fallback về mặc định ban đầu
+                sp_local = "sp_DangKyHocPhan_Local_CG" if SITE_CODE == "CG" else "sp_DangKyHocPhan_Local_NT"
+
             try:
                 cursor.execute(f"EXEC {sp_local} @ma_sv=?, @ma_lop_hp=?", (ma_sv, ma_lop_hp))
                 conn.commit()
-                _log(ma_sv, "DANG_KY_DEMO", f"SV {ma_sv} cướp slot {ma_lop_hp} THÀNH CÔNG (DỰ PHÒNG)")
+                _log(ma_sv, "DANG_KY_DEMO", f"SV {ma_sv} cướp slot {ma_lop_hp} THÀNH CÔNG (DỰ PHÒNG {sp_local})")
                 return jsonify({"success": True, "message": "[KẾT NỐI DỰ PHÒNG] Đăng ký thành công"}), 200
             except pyodbc.Error as ex_local:
                 if conn: conn.rollback()
