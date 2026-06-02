@@ -12,7 +12,6 @@
             <h1>QLDT Phân tán</h1>
             <p class="sub">Hệ thống Đăng ký Học phần — Trung tâm Hà Đông</p>
             <div id="login-error" class="alert alert-error hidden"></div>
-
             <div class="form-group">
                 <label>Tên đăng nhập</label>
                 <input type="text" id="username" placeholder="Mã SV / Mã GV / admin" autocomplete="username">
@@ -34,7 +33,6 @@
     <script>
         const API = '/api';
         document.getElementById('password').addEventListener('keypress', e => { if (e.key === 'Enter') doLogin(); });
-
         async function doLogin() {
             const username = document.getElementById('username').value.trim();
             const password = document.getElementById('password').value;
@@ -42,18 +40,15 @@
             const btnText = document.getElementById('btn-text');
             const btnLoader = document.getElementById('btn-loader');
             const btn = document.querySelector('.login-box .btn');
-
             errEl.classList.add('hidden');
             if (!username) {
                 errEl.textContent = 'Vui lòng nhập tên đăng nhập.';
                 errEl.classList.remove('hidden');
                 return;
             }
-
             btn.disabled = true;
             btnText.textContent = 'Đang đăng nhập...';
             btnLoader.classList.remove('hidden');
-
             try {
                 const resp = await fetch(`${API}/login`, {
                     method: 'POST',
@@ -61,7 +56,6 @@
                     body: JSON.stringify({ username, password }),
                 });
                 const data = await resp.json();
-
                 if (data.success) {
                     sessionStorage.setItem('csdlpt_user', JSON.stringify({
                         username,

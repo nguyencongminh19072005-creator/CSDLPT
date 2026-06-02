@@ -3,15 +3,9 @@ from flask_cors import CORS
 from services.database import execute_query, execute_procedure, get_connection, SITE_CODE
 from services.auth import authenticate
 import pyodbc
-
 app = Flask(__name__, template_folder="../templates", static_folder="../static")
 app.secret_key = "csdldpt_secret_key_2025"
 CORS(app)
-
-
-# ============================================================
-#  SPA: serve index.html for all page routes
-# ============================================================
 @app.route("/")
 @app.route("/trang-chu")
 @app.route("/dang-ky")
@@ -24,24 +18,16 @@ CORS(app)
 @app.route("/phan-tan")
 def spa_page():
     return render_template("index.html")
-
-
-# ============================================================
-#  AUTH
-# ============================================================
 @app.route("/api/login", methods=["POST"])
 def api_login():
     data = request.get_json()
     username = data.get("username", "").strip()
     password = data.get("password", "").strip()
-
     if not username:
         return jsonify({"success": False, "message": "Vui lòng nhập tên đăng nhập."})
-
     user = authenticate(username, password)
     if not user:
         return jsonify({"success": False, "message": "Tên đăng nhập không đúng."})
-
     session["user"] = {
         "username": username,
         "role": user["role"],
@@ -50,47 +36,28 @@ def api_login():
         "ma_gv": user.get("ma_gv"),
     }
     return jsonify({"success": True, "role": user["role"], "ten": user.get("ten", username)})
-
-
 @app.route("/api/logout", methods=["POST"])
 def api_logout():
     session.clear()
     return jsonify({"success": True})
-
-
 @app.route("/api/me")
 def api_me():
     user = session.get("user")
     if not user:
         return jsonify({"authenticated": False})
     return jsonify({"authenticated": True, "user": user})
-
-
-# ============================================================
-#  CO SO
-# ============================================================
 @app.route("/api/co-so", methods=["GET"])
 def get_co_so():
     try:
         return jsonify(execute_query("SELECT ma_co_so, ten_co_so, dia_chi FROM co_so ORDER BY ma_co_so"))
     except Exception as e:
         return jsonify({"error": str(e)}), 500
-
-
-# ============================================================
-#  KHOA
-# ============================================================
 @app.route("/api/khoa", methods=["GET"])
 def get_khoa():
     try:
         return jsonify(execute_query("SELECT ma_khoa, ten_khoa FROM khoa ORDER BY ma_khoa"))
     except Exception as e:
         return jsonify({"error": str(e)}), 500
-
-
-# ============================================================
-#  SINH VIEN
-# ============================================================
 @app.route("/api/sinh-vien", methods=["GET"])
 def get_sinh_vien():
     try:
@@ -105,11 +72,6 @@ def get_sinh_vien():
         """))
     except Exception as e:
         return jsonify({"error": str(e)}), 500
-
-
-# ============================================================
-#  GIANG VIEN
-# ============================================================
 @app.route("/api/giang-vien", methods=["GET"])
 def get_giang_vien():
     try:
@@ -124,11 +86,6 @@ def get_giang_vien():
         """))
     except Exception as e:
         return jsonify({"error": str(e)}), 500
-
-
-# ============================================================
-#  HOC PHAN
-# ============================================================
 @app.route("/api/hoc-phan", methods=["GET"])
 def get_hoc_phan():
     try:
@@ -140,17 +97,11 @@ def get_hoc_phan():
         """))
     except Exception as e:
         return jsonify({"error": str(e)}), 500
-
-
-# ============================================================
-#  LOP HOC PHAN
-# ============================================================
 @app.route("/api/lop-hoc-phan", methods=["GET"])
 def get_lop_hoc_phan():
     ma_co_so = request.args.get("ma_co_so")
     ma_khoa = request.args.get("ma_khoa")
     try:
-        # 1. Định nghĩa Query Local
         query_local = """
             SELECT lhp.ma_lop_hp, lhp.ma_hp, hp.ten_hp AS ten_hoc_phan,
                    lhp.ma_gv, gv.ho_ten AS ten_giang_vien,
@@ -166,8 +117,6 @@ def get_lop_hoc_phan():
             LEFT JOIN phong_hoc ph ON lhp.ma_phong = ph.ma_phong
             LEFT JOIN co_so cs ON lhp.ma_co_so = cs.ma_co_so
         """
-        
-        # 2. Định nghĩa Query Remote (Chọc qua Hà Đông)
         query_remote = """
             SELECT lhp.ma_lop_hp, lhp.ma_hp, hp.ten_hp AS ten_hoc_phan,
                    lhp.ma_gv, gv.ho_ten AS ten_giang_vien,
@@ -183,7 +132,6 @@ def get_lop_hoc_phan():
             LEFT JOIN [LINK_TRUNGTAM].[QLDT_HADONG].[dbo].phong_hoc ph ON lhp.ma_phong = ph.ma_phong
             LEFT JOIN [LINK_TRUNGTAM].[QLDT_HADONG].[dbo].co_so cs ON lhp.ma_co_so = cs.ma_co_so
         """
-
         conditions = []
         params = []
         if ma_co_so:
@@ -192,15 +140,11 @@ def get_lop_hoc_phan():
         if ma_khoa:
             conditions.append("hp.ma_khoa = ?")
             params.append(ma_khoa)
-            
         where_clause = ""
         if conditions:
             where_clause = " WHERE " + " AND ".join(conditions)
-
-        # 3. Logic THÔNG MINH: Thử gọi Remote trước nếu là máy con
         lop_hp = None
         lich = None
-        
         if SITE_CODE != "HD":
             try:
                 lop_hp = execute_query(query_remote + where_clause + " ORDER BY hp.ten_hp ASC, lhp.ma_lop_hp ASC", params if params else None)
@@ -212,9 +156,7 @@ def get_lop_hoc_phan():
                 """)
             except Exception as e:
                 print("Lỗi Linked Server, Fallback về Local:", e)
-                lop_hp = None # Fallback
-                
-        # 4. Fallback về Local nếu là máy HD hoặc Remote bị lỗi (Hà Đông sập)
+                lop_hp = None           
         if lop_hp is None:
             lop_hp = execute_query(query_local + where_clause + " ORDER BY hp.ten_hp ASC, lhp.ma_lop_hp ASC", params if params else None)
             lich = execute_query("""
@@ -223,16 +165,12 @@ def get_lop_hoc_phan():
                 FROM lich_hoc lh
                 LEFT JOIN phong_hoc ph ON lh.ma_phong = ph.ma_phong
             """)
-
-        # Map lich hoc theo ma_lop_hp
         lich_map = {}
         for l in lich:
             key = l["ma_lop_hp"]
             if key not in lich_map:
                 lich_map[key] = []
             lich_map[key].append(l)
-
-        # Gan lich hoc vao ket qua
         thu_names = {1: "T2", 2: "T3", 3: "T4", 4: "T5", 5: "T6", 6: "T7", 7: "CN"}
         for r in lop_hp:
             r["lich_hoc"] = []
@@ -242,12 +180,9 @@ def get_lop_hoc_phan():
                     "tiet": f"{l['tiet_bat_dau']}-{l['tiet_ket_thuc']}",
                     "phong": l["ten_phong"] or l["ma_phong"] or "",
                 })
-
         return jsonify(lop_hp)
     except Exception as e:
         return jsonify({"error": str(e)}), 500
-
-
 @app.route("/api/sinh-vien/<ma_sv>/khoa", methods=["GET"])
 def get_sinh_vien_khoa(ma_sv):
     try:
@@ -263,11 +198,6 @@ def get_sinh_vien_khoa(ma_sv):
         return jsonify(rows[0])
     except Exception as e:
         return jsonify({"error": str(e)}), 500
-
-
-# ============================================================
-#  PHONG HOC
-# ============================================================
 @app.route("/api/phong-hoc", methods=["GET"])
 def get_phong_hoc():
     try:
@@ -279,11 +209,6 @@ def get_phong_hoc():
         """))
     except Exception as e:
         return jsonify({"error": str(e)}), 500
-
-
-# ============================================================
-#  LICH HOC
-# ============================================================
 @app.route("/api/lich-hoc", methods=["GET"])
 def get_lich_hoc():
     try:
@@ -296,75 +221,112 @@ def get_lich_hoc():
         """))
     except Exception as e:
         return jsonify({"error": str(e)}), 500
-
-
-# ============================================================
-#  DANG KY (goi SP)
-# ============================================================
 @app.route("/api/dang-ky", methods=["POST"])
 def api_dang_ky():
     data = request.get_json()
     ma_sv = data.get("ma_sv", "").strip()
     ma_lop_hp = data.get("ma_lop_hp", "").strip()
-
     if not ma_sv or not ma_lop_hp:
         return jsonify({"success": False, "message": "Thiếu mã SV hoặc mã LHP."}), 400
-
-    # Chuyển hướng SP tùy theo chạy ở máy nào
     sp_name = "sp_DangKyHocPhan_TrungTam" if SITE_CODE == "HD" else "sp_dang_ky_hoc_phan"
     result = execute_procedure(sp_name, (ma_sv, ma_lop_hp))
-
     if result["success"]:
-        _log(ma_sv, "DANG_KY", f"SV {ma_sv} đăng ký {ma_lop_hp}")
-
+        _log(ma_sv, "DANG_KY", f"SV {ma_sv} đăng ký {ma_lop_hp} THÀNH CÔNG")
+    else:
+        _log(ma_sv, "DANG_KY_THAT_BAI", f"SV {ma_sv} đăng ký {ma_lop_hp} THẤT BẠI: {result['message']}")
     return jsonify(result), 200 if result["success"] else 400
-
-
-# ============================================================
-#  HUY DANG KY (goi SP)
-# ============================================================
+@app.route("/api/dang-ky-demo", methods=["POST"])
+def api_dang_ky_demo():
+    data = request.get_json()
+    ma_sv = data.get("ma_sv", "").strip()
+    ma_lop_hp = data.get("ma_lop_hp", "").strip()
+    if not ma_sv or not ma_lop_hp:
+        return jsonify({"success": False, "message": "Thiếu thông tin."}), 400
+    sp_name = "sp_DangKyHocPhan_TrungTam" if SITE_CODE == "HD" else "sp_dang_ky_hoc_phan"
+    import pyodbc
+    from config import Config
+    cfg = Config()
+    conn_str = cfg.hd_connection_string
+    if SITE_CODE == "CG": conn_str = cfg.cg_connection_string
+    elif SITE_CODE == "NT": conn_str = cfg.nt_connection_string
+    conn = None
+    try:
+        conn = pyodbc.connect(conn_str, autocommit=False)
+        cursor = conn.cursor()
+        cursor.execute(f"EXEC {sp_name} @ma_sv=?, @ma_lop_hp=?", (ma_sv, ma_lop_hp))
+        conn.commit()
+        _log(ma_sv, "DANG_KY_DEMO", f"SV {ma_sv} cướp slot {ma_lop_hp} THÀNH CÔNG")
+        return jsonify({"success": True, "message": "Đăng ký thành công"}), 200
+    except pyodbc.Error as ex:
+        if conn: conn.rollback()
+        msg = str(ex.args[1]) if len(ex.args) > 1 else str(ex)
+        _log(ma_sv, "DANG_KY_DEMO", f"SV {ma_sv} cướp slot {ma_lop_hp} THẤT BẠI: {msg}")
+        return jsonify({"success": False, "message": msg}), 400
+    finally:
+        if conn:
+            conn.close()
+@app.route("/api/reset-demo", methods=["POST"])
+def api_reset_demo():
+    data = request.get_json()
+    ma_lop_hp = data.get("ma_lop_hp", "").strip()
+    sv1 = data.get("sv1", "").strip()
+    sv2 = data.get("sv2", "").strip()
+    sv3 = data.get("sv3", "").strip()
+    if not ma_lop_hp or not sv1 or not sv2 or not sv3:
+        return jsonify({"success": False, "message": "Thiếu thông tin."}), 400
+    try:
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute("""
+            DELETE FROM dbo.dang_ky 
+            WHERE ma_lop_hp = ? AND ma_sv IN (?, ?, ?)
+        """, (ma_lop_hp, sv1, sv2, sv3))
+        cursor.execute("""
+            UPDATE dbo.lop_hoc_phan 
+            SET si_so_toi_da = 2, so_luong_da_dang_ky = 1 
+            WHERE ma_lop_hp = ?
+        """, (ma_lop_hp,))
+        conn.commit()
+        return jsonify({"success": True, "message": "Đã reset lớp thành công!"}), 200
+    except Exception as e:
+        if 'conn' in locals() and conn:
+            conn.rollback()
+        return jsonify({"success": False, "message": str(e)}), 400
+    finally:
+        if 'cursor' in locals() and cursor:
+            cursor.close()
+        if 'conn' in locals() and conn:
+            conn.close()
 @app.route("/api/huy-dang-ky", methods=["POST"])
 def api_huy_dang_ky():
     data = request.get_json()
     ma_sv = data.get("ma_sv", "").strip()
     ma_lop_hp = data.get("ma_lop_hp", "").strip()
-
     if not ma_sv or not ma_lop_hp:
         return jsonify({"success": False, "message": "Thiếu thông tin."}), 400
-
     try:
         conn = get_connection()
         cursor = conn.cursor()
-        
-        # Chuyển hướng SP tùy theo chạy ở máy nào
         sp_name = "sp_HuyDangKyHocPhan_TrungTam" if SITE_CODE == "HD" else "sp_HuyDangKyHocPhan"
-        
-        # Thuc thi SP
         cursor.execute(f"EXEC {sp_name} @ma_sv=?, @ma_lop_hp=?", (ma_sv, ma_lop_hp))
-        
-        # SP moi khong tra ve SELECT (chi DELETE va UPDATE), nen thu fetchone co the loi
         msg = "Hủy thành công."
         try:
             row = cursor.fetchone()
             if row and row[0]:
                 msg = str(row[0])
         except pyodbc.ProgrammingError:
-            pass # Khong co ket qua tra ve
-
+            pass
         conn.commit()
-        cursor.close()
-        conn.close()
-
         _log(ma_sv, "HUY_DANG_KY", f"SV {ma_sv} hủy {ma_lop_hp}")
         return jsonify({"success": True, "message": msg})
     except pyodbc.Error as ex:
         msg = str(ex.args[1]) if len(ex.args) > 1 else str(ex)
         return jsonify({"success": False, "message": msg}), 400
-
-
-# ============================================================
-#  KET QUA DANG KY
-# ============================================================
+    finally:
+        if 'cursor' in locals() and cursor:
+            cursor.close()
+        if 'conn' in locals() and conn:
+            conn.close()
 @app.route("/api/ket-qua-dang-ky/<ma_sv>", methods=["GET"])
 def get_ket_qua(ma_sv):
     try:
@@ -376,17 +338,12 @@ def get_ket_qua(ma_sv):
             JOIN sinh_vien sv ON dk.ma_sv = sv.ma_sv
             JOIN lop_hoc_phan lhp ON dk.ma_lop_hp = lhp.ma_lop_hp
             JOIN hoc_phan hp ON lhp.ma_hp = hp.ma_hp
-            JOIN co_so cs ON dk.ma_co_so = cs.ma_co_so
+            JOIN co_so cs ON lhp.ma_co_so = cs.ma_co_so
             WHERE dk.ma_sv = ? AND dk.trang_thai = N'THANH_CONG'
             ORDER BY dk.thoi_gian_dang_ky DESC
         """, (ma_sv,)))
     except Exception as e:
         return jsonify({"error": str(e)}), 500
-
-
-# ============================================================
-#  THOI KHOA BIEU
-# ============================================================
 @app.route("/api/thoi-khoa-bieu/<ma_sv>", methods=["GET"])
 def get_tkb(ma_sv):
     try:
@@ -404,50 +361,30 @@ def get_tkb(ma_sv):
         """, (ma_sv,)))
     except Exception as e:
         return jsonify({"error": str(e)}), 500
-
-
-# ============================================================
-#  DANG KY DAY (GIANG VIEN) - GOI SP
-# ============================================================
 @app.route("/api/dang-ky-day", methods=["POST"])
 def api_dang_ky_day():
     data = request.get_json()
     ma_gv = data.get("ma_gv", "").strip()
     ma_lop_hp = data.get("ma_lop_hp", "").strip()
-
     if not ma_gv or not ma_lop_hp:
         return jsonify({"success": False, "message": "Thiếu thông tin."}), 400
-
-    # Nếu ở máy khác, bạn có thể cần đổi tên SP (ví dụ sp_DangKyLichDay_GiangVien_Remote)
     sp_name = "sp_DangKyLichDay_GiangVien"
     result = execute_procedure(sp_name, (ma_gv, ma_lop_hp))
-
     if result["success"]:
         _log(ma_gv, "DANG_KY_DAY", f"GV {ma_gv} đăng ký dạy {ma_lop_hp}")
-
     return jsonify(result), 200 if result["success"] else 400
-
 @app.route("/api/huy-day", methods=["POST"])
 def api_huy_day():
     data = request.get_json()
     ma_gv = data.get("ma_gv", "").strip()
     ma_lop_hp = data.get("ma_lop_hp", "").strip()
-
     if not ma_gv or not ma_lop_hp:
         return jsonify({"success": False, "message": "Thiếu thông tin."}), 400
-
     sp_name = "sp_HuyDangKyLichDay_GiangVien"
     result = execute_procedure(sp_name, (ma_gv, ma_lop_hp))
-
     if result["success"]:
         _log(ma_gv, "HUY_DAY", f"GV {ma_gv} hủy dạy {ma_lop_hp}")
-
     return jsonify(result), 200 if result["success"] else 400
-
-
-# ============================================================
-#  LICH DAY GIANG VIEN
-# ============================================================
 @app.route("/api/lich-day/<ma_gv>", methods=["GET"])
 def get_lich_day(ma_gv):
     try:
@@ -467,11 +404,6 @@ def get_lich_day(ma_gv):
         """, (ma_gv,)))
     except Exception as e:
         return jsonify({"error": str(e)}), 500
-
-
-# ============================================================
-#  THONG KE
-# ============================================================
 @app.route("/api/thong-ke/toan-truong", methods=["GET"])
 def thong_ke_tong():
     try:
@@ -505,8 +437,6 @@ def thong_ke_tong():
         })
     except Exception as e:
         return jsonify({"error": str(e)}), 500
-
-
 @app.route("/api/tong-hop", methods=["GET"])
 def get_tong_hop():
     """Gộp tất cả data quản lý vào 1 request — nhanh hơn 8 query riêng."""
@@ -564,8 +494,6 @@ def get_tong_hop():
         })
     except Exception as e:
         return jsonify({"error": str(e)}), 500
-
-
 @app.route("/api/thong-ke/co-so", methods=["GET"])
 def thong_ke_co_so():
     try:
@@ -591,11 +519,6 @@ def thong_ke_co_so():
         return jsonify(rows)
     except Exception as e:
         return jsonify({"error": str(e)}), 500
-
-
-# ============================================================
-#  NHAT KY
-# ============================================================
 def _log(nguoi_dung, hanh_dong, chi_tiet):
     try:
         execute_query(
@@ -604,8 +527,6 @@ def _log(nguoi_dung, hanh_dong, chi_tiet):
         )
     except Exception:
         pass
-
-
 @app.route("/api/nhat-ky", methods=["GET"])
 def get_nhat_ky():
     try:
@@ -615,22 +536,11 @@ def get_nhat_ky():
         """))
     except Exception as e:
         return jsonify({"error": str(e)}), 500
-
-
-# ============================================================
-#  TRUY VAN PHAN TAN (5 YÊU CẦU NÂNG CAO)
-# ============================================================
 @app.route("/api/tru-van-phan-tan/<int:loai>", methods=["GET"])
 def truy_van_phan_tan_nang_cao(loai):
     try:
         conn = get_connection()
         cursor = conn.cursor()
-        
-        # Ghi chú: Sử dụng SITE_HD, SITE_CG, SITE_NT theo đúng yêu cầu.
-        # Nếu máy hiện tại là Hà Đông, thì SITE_HD chính là db cục bộ (có thể bỏ chữ [SITE_HD]. đi)
-        # Tuy nhiên để giữ đúng nguyên bản kịch bản phân tán, ta giữ nguyên cấu trúc truy vấn.
-        # Đã sửa ma_lhp thành ma_lop_hp cho khớp với CSDL thực tế.
-        
         if loai == 1:
             query = """
             SELECT N'Hà Đông' AS ten_co_so, COUNT(*) AS so_luot_dang_ky
@@ -756,48 +666,32 @@ def truy_van_phan_tan_nang_cao(loai):
             """
         else:
             return jsonify({"success": False, "message": "Loại truy vấn không hợp lệ"}), 400
-
-        # ÁNH XẠ TÊN LINKED SERVER THỰC TẾ TRÊN MÁY BẠN
-        # Hà Đông là máy Cục bộ (Local) -> Xóa chữ [SITE_HD]. đi để chạy thẳng vào CSDL cục bộ
         query = query.replace("[SITE_HD].", "")
-        
-        # Giữ nguyên tên SITE_CG, SITE_NT vì bạn đã tạo đúng tên này trong SSMS
         query = query.replace("[SITE_CG]", "[SITE_CG]")
         query = query.replace("[SITE_NT]", "[SITE_NT]")
-
-        # Mẹo: Đôi khi chạy thật sẽ bị lỗi vì chưa Add Linked Server SITE_HD, SITE_CG, SITE_NT
-        # Nên ta dùng thủ thuật replace nếu đang chạy cục bộ để tránh crash:
-        # Nếu muốn thử nghiệm ko lỗi thì mở comment đoạn dưới:
-        # query = query.replace("[SITE_HD].[QLDT_HADONG].dbo.", "")
-        # query = query.replace("[SITE_CG].[QLDT_CauGiay].dbo.", "")
-        # query = query.replace("[SITE_NT].[QLDT_NT].dbo.", "")
-
         cursor.execute(query)
         cols = [c[0] for c in cursor.description]
         rows = [dict(zip(cols, r)) for r in cursor.fetchall()]
-        cursor.close(); conn.close()
         return jsonify({"success": True, "data": rows})
     except pyodbc.Error as ex:
         msg = str(ex.args[1]) if len(ex.args) > 1 else str(ex)
         return jsonify({"success": False, "message": f"Lỗi SQL: {msg}"}), 500
     except Exception as e:
         return jsonify({"success": False, "message": str(e)}), 500
-
-
-# ============================================================
-#  CRUD CHUNG (ADMIN)
-# ============================================================
+    finally:
+        if 'cursor' in locals() and cursor:
+            cursor.close()
+        if 'conn' in locals() and conn:
+            conn.close()
 @app.route("/api/crud/<table>", methods=["POST", "PUT", "DELETE"])
 def api_crud(table):
     ALLOWED_TABLES = ["co_so", "khoa", "sinh_vien", "giang_vien", "hoc_phan", "lop_hoc_phan", "phong_hoc", "lich_hoc"]
     if table not in ALLOWED_TABLES:
         return jsonify({"success": False, "message": "Bảng không hợp lệ."}), 400
-
     data = request.get_json() or {}
     pk_col = data.get("pk_col")
     pk_val = data.get("pk_val")
     fields = data.get("fields", {})
-
     try:
         if request.method == "POST":
             if not fields: return jsonify({"success": False, "message": "Dữ liệu trống"}), 400
@@ -806,7 +700,6 @@ def api_crud(table):
             sql = f"INSERT INTO {table} ({cols}) VALUES ({places})"
             execute_query(sql, tuple(fields.values()), fetch=False)
             return jsonify({"success": True, "message": "Thêm thành công."})
-            
         elif request.method == "PUT":
             if not fields or not pk_col or not pk_val: return jsonify({"success": False, "message": "Thiếu dữ liệu"}), 400
             set_clause = ", ".join([f"{k}=?" for k in fields.keys()])
@@ -814,25 +707,18 @@ def api_crud(table):
             params = tuple(fields.values()) + (pk_val,)
             execute_query(sql, params, fetch=False)
             return jsonify({"success": True, "message": "Cập nhật thành công."})
-            
         elif request.method == "DELETE":
             if not pk_col or not pk_val: return jsonify({"success": False, "message": "Thiếu dữ liệu"}), 400
-            # Giảng viên và Sinh viên thì dùng cờ xóa mềm (da_xoa)
             if table in ["sinh_vien", "giang_vien"]:
                 sql = f"UPDATE {table} SET da_xoa=1 WHERE {pk_col}=?"
             else:
                 sql = f"DELETE FROM {table} WHERE {pk_col}=?"
             execute_query(sql, (pk_val,), fetch=False)
             return jsonify({"success": True, "message": "Xóa thành công."})
-
     except pyodbc.Error as ex:
         msg = str(ex.args[1]) if len(ex.args) > 1 else str(ex)
         return jsonify({"success": False, "message": msg}), 400
     except Exception as e:
         return jsonify({"success": False, "message": str(e)}), 400
-
-
-
-# ============================================================
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)

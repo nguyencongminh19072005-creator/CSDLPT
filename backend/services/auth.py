@@ -1,6 +1,4 @@
 from services.database import execute_query
-
-
 def authenticate(username, password):
     """
     Đăng nhập bằng mã sinh viên / mã giảng viên / admin.
@@ -9,14 +7,10 @@ def authenticate(username, password):
     - Admin: username = 'admin', password = 'admin123'
     """
     username = username.strip()
-
-    # Admin
     if username == "admin":
         if password == "admin123":
             return {"role": "admin", "username": "admin", "ten": "Quản trị viên"}
         return None
-
-    # Sinh viên
     sv = execute_query(
         "SELECT ma_sv, ho_ten FROM sinh_vien WHERE ma_sv = ? AND da_xoa = 0",
         (username,)
@@ -28,8 +22,6 @@ def authenticate(username, password):
             "ma_sv": username,
             "ten": sv[0]["ho_ten"],
         }
-
-    # Giảng viên
     gv = execute_query(
         "SELECT ma_gv, ho_ten FROM giang_vien WHERE ma_gv = ? AND da_xoa = 0",
         (username,)
@@ -41,5 +33,4 @@ def authenticate(username, password):
             "ma_gv": username,
             "ten": gv[0]["ho_ten"],
         }
-
     return None

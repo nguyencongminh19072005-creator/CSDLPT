@@ -96,9 +96,11 @@ async function doLogin() {
         const data = await resp.json();
 
         if (data.success) {
-            setUser({ username: u, role: data.role, ten: data.ten,
+            setUser({
+                username: u, role: data.role, ten: data.ten,
                 ma_sv: data.role === 'sinhvien' ? u : null,
-                ma_gv: data.role === 'giangvien' ? u : null });
+                ma_gv: data.role === 'giangvien' ? u : null
+            });
             navigate('trang-chu');
         } else {
             err.textContent = data.message;
@@ -127,20 +129,21 @@ function renderApp(user, route) {
             { h: 'thong-ke', l: 'Thống kê', i: '📊' },
             { h: 'nhat-ky', l: 'Nhật ký Hệ thống', i: '📜' },
             { h: 'phan-tan', l: 'Truy vấn Phân tán', i: '🔗' },
-          ]
+            { h: 'demo', l: 'Demo Đồng Thời', i: '🚀' },
+        ]
         : role === 'sinhvien'
-        ? [
-            { h: 'trang-chu', l: 'Trang chủ', i: '🏠' },
-            { h: 'dang-ky', l: 'Đăng ký HP', i: '📝' },
-            { h: 'huy-dang-ky', l: 'Hủy ĐK', i: '❌' },
-            { h: 'ket-qua', l: 'Kết quả', i: '📋' },
-            { h: 'lich', l: 'Thời khóa biểu', i: '📅' },
-          ]
-        : [
-            { h: 'trang-chu', l: 'Trang chủ', i: '🏠' },
-            { h: 'dang-ky-day', l: 'Đăng ký dạy', i: '📝' },
-            { h: 'lich', l: 'Lịch dạy', i: '📅' },
-          ];
+            ? [
+                { h: 'trang-chu', l: 'Trang chủ', i: '🏠' },
+                { h: 'dang-ky', l: 'Đăng ký HP', i: '📝' },
+                { h: 'huy-dang-ky', l: 'Hủy ĐK', i: '❌' },
+                { h: 'ket-qua', l: 'Kết quả', i: '📋' },
+                { h: 'lich', l: 'Thời khóa biểu', i: '📅' },
+            ]
+            : [
+                { h: 'trang-chu', l: 'Trang chủ', i: '🏠' },
+                { h: 'dang-ky-day', l: 'Đăng ký dạy', i: '📝' },
+                { h: 'lich', l: 'Lịch dạy', i: '📅' },
+            ];
 
     document.getElementById('app').innerHTML = `
         <nav class="navbar">
@@ -188,16 +191,17 @@ async function loadPage(route) {
     });
 
     switch (route) {
-        case 'trang-chu':    await renderTrangChu(el, user); break;
-        case 'dang-ky':      await renderDangKy(el, user); break;
-        case 'huy-dang-ky':  await renderHuyDangKy(el, user); break;
-        case 'ket-qua':       await renderKetQua(el, user); break;
-        case 'quan-ly':       await renderQuanLy(el, user); break;
-        case 'thong-ke':      await renderThongKe(el, user); break;
-        case 'nhat-ky':      await renderNhatKy(el, user); break;
-        case 'phan-tan':     await renderPhanTan(el, user); break;
-        case 'dang-ky-day':  await renderDangKyDay(el, user); break;
-        case 'lich':          await renderLich(el, user); break;
+        case 'trang-chu': await renderTrangChu(el, user); break;
+        case 'dang-ky': await renderDangKy(el, user); break;
+        case 'huy-dang-ky': await renderHuyDangKy(el, user); break;
+        case 'ket-qua': await renderKetQua(el, user); break;
+        case 'quan-ly': await renderQuanLy(el, user); break;
+        case 'thong-ke': await renderThongKe(el, user); break;
+        case 'nhat-ky': await renderNhatKy(el, user); break;
+        case 'phan-tan': await renderPhanTan(el, user); break;
+        case 'demo': await renderDemoDongThoi(el, user); break;
+        case 'dang-ky-day': await renderDangKyDay(el, user); break;
+        case 'lich': await renderLich(el, user); break;
         default: el.innerHTML = '<p>Trang không tồn tại.</p>';
     }
 }
@@ -423,8 +427,8 @@ function renderDangKyTable(khoaFilter) {
             <td><span class="badge ${(r.con_trong || 0) > 0 ? 'badge-success' : 'badge-danger'}">${r.con_trong || 0}</span></td>
             <td>
                 ${_dkDaDangKy.includes(r.ma_lop_hp)
-                    ? `<button class="btn btn-danger btn-sm" onclick="quickHuyDK_FromDK('${r.ma_lop_hp}')">Hủy ĐK</button>`
-                    : `<button class="btn btn-primary btn-sm" onclick="quickDangKy('${r.ma_lop_hp}')">Đăng ký</button>`}
+                ? `<button class="btn btn-danger btn-sm" onclick="quickHuyDK_FromDK('${r.ma_lop_hp}')">Hủy ĐK</button>`
+                : `<button class="btn btn-primary btn-sm" onclick="quickDangKy('${r.ma_lop_hp}')">Đăng ký</button>`}
             </td>
         </tr>
         <tr style="background:#f8f9fa">
@@ -442,7 +446,7 @@ function quickDangKy(ma_lop_hp) {
         return;
     }
     document.getElementById('dk-sv').value = currentSV;
-    
+
     if (confirm(`Xác nhận đăng ký lớp học phần ${ma_lop_hp}?`)) {
         submitDangKy();
     }
@@ -451,14 +455,14 @@ function quickDangKy(ma_lop_hp) {
 async function quickHuyDK_FromDK(ma_lop_hp) {
     const ma_sv = document.getElementById('dk-sv').value.trim() || getUser()?.ma_sv;
     if (!ma_sv) return;
-    
+
     if (!confirm(`Xác nhận HỦY đăng ký lớp học phần ${ma_lop_hp}?`)) {
         return;
     }
-    
+
     const msg = document.getElementById('dk-global-msg');
     msg.innerHTML = '<div class="alert alert-info">Đang xử lý hủy...</div>';
-    
+
     const data = await api(`${API}/huy-dang-ky`, {
         method: 'POST',
         body: JSON.stringify({ ma_sv, ma_lop_hp }),
@@ -577,7 +581,7 @@ async function renderKetQua(el, user) {
                 <tbody>
                     ${!dk.length ? '<tr><td colspan="7" style="text-align:center;color:#999">Không có đăng ký</td></tr>' : ''}
                     ${dk.map((r, i) => `<tr>
-                        <td>${i+1}</td>
+                        <td>${i + 1}</td>
                         <td><strong>${r.ma_lop_hp}</strong></td>
                         <td>${r.ten_hp || ''}</td>
                         <td>${r.ten_co_so || ''}</td>
@@ -624,7 +628,7 @@ async function renderQuanLy(el, user) {
                 </div>
                 <div class="table-wrap"><table>
                     <thead><tr><th>Mã</th><th>Tên</th><th>Địa chỉ</th><th>Hành động</th></tr></thead>
-                    <tbody>${(data.co_so||[]).map(r => `<tr><td>${r.ma_co_so}</td><td>${r.ten_co_so}</td><td>${r.dia_chi||''}</td>
+                    <tbody>${(data.co_so || []).map(r => `<tr><td>${r.ma_co_so}</td><td>${r.ten_co_so}</td><td>${r.dia_chi || ''}</td>
                         <td>
                             <button class="btn btn-secondary btn-sm" onclick='showCrudModal("co_so", "ma_co_so", ["ma_co_so","ten_co_so","dia_chi"], "Sửa Cơ sở", ${JSON.stringify(r).replace(/'/g, "&apos;")})'>Sửa</button>
                             <button class="btn btn-danger btn-sm" onclick="deleteCrud('co_so', 'ma_co_so', '${r.ma_co_so}')">Xóa</button>
@@ -642,7 +646,7 @@ async function renderQuanLy(el, user) {
                 </div>
                 <div class="table-wrap"><table>
                     <thead><tr><th>Mã</th><th>Tên</th><th>Hành động</th></tr></thead>
-                    <tbody>${(data.khoa||[]).map(r => `<tr><td>${r.ma_khoa}</td><td>${r.ten_khoa}</td>
+                    <tbody>${(data.khoa || []).map(r => `<tr><td>${r.ma_khoa}</td><td>${r.ten_khoa}</td>
                         <td>
                             <button class="btn btn-secondary btn-sm" onclick='showCrudModal("khoa", "ma_khoa", ["ma_khoa","ten_khoa"], "Sửa Khoa", ${JSON.stringify(r).replace(/'/g, "&apos;")})'>Sửa</button>
                             <button class="btn btn-danger btn-sm" onclick="deleteCrud('khoa', 'ma_khoa', '${r.ma_khoa}')">Xóa</button>
@@ -660,10 +664,10 @@ async function renderQuanLy(el, user) {
                 </div>
                 <div class="table-wrap"><table>
                     <thead><tr><th>Mã SV</th><th>Họ tên</th><th>Khoa</th><th>Cơ sở</th><th>Trạng thái</th><th>Hành động</th></tr></thead>
-                    <tbody>${(data.sinh_vien||[]).map(r => `<tr>
+                    <tbody>${(data.sinh_vien || []).map(r => `<tr>
                         <td>${r.ma_sv}</td><td>${r.ho_ten}</td>
-                        <td>${r.ten_khoa||''}</td><td>${r.ten_co_so||''}</td>
-                        <td><span class="badge ${r.trang_thai==='Hoạt động'?'badge-success':'badge-danger'}">${r.trang_thai||''}</span></td>
+                        <td>${r.ten_khoa || ''}</td><td>${r.ten_co_so || ''}</td>
+                        <td><span class="badge ${r.trang_thai === 'Hoạt động' ? 'badge-success' : 'badge-danger'}">${r.trang_thai || ''}</span></td>
                         <td>
                             <button class="btn btn-secondary btn-sm" onclick='showCrudModal("sinh_vien", "ma_sv", ["ma_sv","ho_ten","ngay_sinh","gioi_tinh","ma_khoa","ma_co_so"], "Sửa Sinh viên", ${JSON.stringify(r).replace(/'/g, "&apos;")})'>Sửa</button>
                             <button class="btn btn-danger btn-sm" onclick="deleteCrud('sinh_vien', 'ma_sv', '${r.ma_sv}')">Xóa</button>
@@ -681,9 +685,9 @@ async function renderQuanLy(el, user) {
                 </div>
                 <div class="table-wrap"><table>
                     <thead><tr><th>Mã GV</th><th>Họ tên</th><th>Học vị</th><th>Khoa</th><th>Cơ sở</th><th>Hành động</th></tr></thead>
-                    <tbody>${(data.giang_vien||[]).map(r => `<tr>
-                        <td>${r.ma_gv}</td><td>${r.ho_ten}</td><td>${r.hoc_vi||''}</td>
-                        <td>${r.ten_khoa||''}</td><td>${r.ten_co_so||''}</td>
+                    <tbody>${(data.giang_vien || []).map(r => `<tr>
+                        <td>${r.ma_gv}</td><td>${r.ho_ten}</td><td>${r.hoc_vi || ''}</td>
+                        <td>${r.ten_khoa || ''}</td><td>${r.ten_co_so || ''}</td>
                         <td>
                             <button class="btn btn-secondary btn-sm" onclick='showCrudModal("giang_vien", "ma_gv", ["ma_gv","ho_ten","hoc_vi","ma_khoa","ma_co_so"], "Sửa Giảng viên", ${JSON.stringify(r).replace(/'/g, "&apos;")})'>Sửa</button>
                             <button class="btn btn-danger btn-sm" onclick="deleteCrud('giang_vien', 'ma_gv', '${r.ma_gv}')">Xóa</button>
@@ -701,8 +705,8 @@ async function renderQuanLy(el, user) {
                 </div>
                 <div class="table-wrap"><table>
                     <thead><tr><th>Mã HP</th><th>Tên</th><th>Tín chỉ</th><th>Khoa</th><th>Hành động</th></tr></thead>
-                    <tbody>${(data.hoc_phan||[]).map(r => `<tr>
-                        <td>${r.ma_hp}</td><td>${r.ten_hp}</td><td>${r.so_tin_chi}</td><td>${r.ten_khoa||''}</td>
+                    <tbody>${(data.hoc_phan || []).map(r => `<tr>
+                        <td>${r.ma_hp}</td><td>${r.ten_hp}</td><td>${r.so_tin_chi}</td><td>${r.ten_khoa || ''}</td>
                         <td>
                             <button class="btn btn-secondary btn-sm" onclick='showCrudModal("hoc_phan", "ma_hp", ["ma_hp","ten_hp","so_tin_chi","ma_khoa"], "Sửa Học phần", ${JSON.stringify(r).replace(/'/g, "&apos;")})'>Sửa</button>
                             <button class="btn btn-danger btn-sm" onclick="deleteCrud('hoc_phan', 'ma_hp', '${r.ma_hp}')">Xóa</button>
@@ -720,11 +724,11 @@ async function renderQuanLy(el, user) {
                 </div>
                 <div class="table-wrap"><table>
                     <thead><tr><th>Mã LHP</th><th>Học phần</th><th>GV</th><th>Cơ sở</th><th>HK</th><th>SL</th><th>Hành động</th></tr></thead>
-                    <tbody>${(data.lop_hoc_phan||[]).map(r => `<tr>
-                        <td>${r.ma_lop_hp}</td><td>${r.ten_hoc_phan||''}</td>
-                        <td>${r.ten_giang_vien||''}</td><td>${r.ten_co_so||''}</td>
-                        <td>HK${r.hoc_ky||''}</td>
-                        <td>${r.so_luong_da_dang_ky||0}/${r.si_so_toi_da||0}</td>
+                    <tbody>${(data.lop_hoc_phan || []).map(r => `<tr>
+                        <td>${r.ma_lop_hp}</td><td>${r.ten_hoc_phan || ''}</td>
+                        <td>${r.ten_giang_vien || ''}</td><td>${r.ten_co_so || ''}</td>
+                        <td>HK${r.hoc_ky || ''}</td>
+                        <td>${r.so_luong_da_dang_ky || 0}/${r.si_so_toi_da || 0}</td>
                         <td>
                             <button class="btn btn-secondary btn-sm" onclick='showCrudModal("lop_hoc_phan", "ma_lop_hp", ["ma_lop_hp","ma_hp","ma_gv","ma_phong","ma_co_so","hoc_ky","nam_hoc","si_so_toi_da"], "Sửa Lớp HP", ${JSON.stringify(r).replace(/'/g, "&apos;")})'>Sửa</button>
                             <button class="btn btn-danger btn-sm" onclick="deleteCrud('lop_hoc_phan', 'ma_lop_hp', '${r.ma_lop_hp}')">Xóa</button>
@@ -742,8 +746,8 @@ async function renderQuanLy(el, user) {
                 </div>
                 <div class="table-wrap"><table>
                     <thead><tr><th>Mã</th><th>Tên</th><th>Sức chứa</th><th>Cơ sở</th><th>Hành động</th></tr></thead>
-                    <tbody>${(data.phong_hoc||[]).map(r => `<tr>
-                        <td>${r.ma_phong}</td><td>${r.ten_phong}</td><td>${r.suc_chua}</td><td>${r.ten_co_so||''}</td>
+                    <tbody>${(data.phong_hoc || []).map(r => `<tr>
+                        <td>${r.ma_phong}</td><td>${r.ten_phong}</td><td>${r.suc_chua}</td><td>${r.ten_co_so || ''}</td>
                         <td>
                             <button class="btn btn-secondary btn-sm" onclick='showCrudModal("phong_hoc", "ma_phong", ["ma_phong","ten_phong","suc_chua","ma_co_so"], "Sửa Phòng học", ${JSON.stringify(r).replace(/'/g, "&apos;")})'>Sửa</button>
                             <button class="btn btn-danger btn-sm" onclick="deleteCrud('phong_hoc', 'ma_phong', '${r.ma_phong}')">Xóa</button>
@@ -761,10 +765,10 @@ async function renderQuanLy(el, user) {
                 </div>
                 <div class="table-wrap"><table>
                     <thead><tr><th>Mã LHP</th><th>Thứ</th><th>Tiết</th><th>Phòng</th><th>Cơ sở</th><th>Hành động</th></tr></thead>
-                    <tbody>${(data.lich_hoc||[]).map(r => `<tr>
+                    <tbody>${(data.lich_hoc || []).map(r => `<tr>
                         <td>${r.ma_lop_hp}</td><td>${r.thu}</td>
                         <td>${r.tiet_bat_dau}-${r.tiet_ket_thuc}</td>
-                        <td>${r.ten_phong||r.ma_phong||''}</td><td>${r.ma_co_so}</td>
+                        <td>${r.ten_phong || r.ma_phong || ''}</td><td>${r.ma_co_so}</td>
                         <td>
                             <button class="btn btn-secondary btn-sm" onclick='showCrudModal("lich_hoc", "ma_lich", ["ma_lich","ma_lop_hp","thu","tiet_bat_dau","tiet_ket_thuc","ma_phong","ma_co_so"], "Sửa Lịch học", ${JSON.stringify(r).replace(/'/g, "&apos;")})'>Sửa</button>
                             <button class="btn btn-danger btn-sm" onclick="deleteCrud('lich_hoc', 'ma_lich', '${r.ma_lich}')">Xóa</button>
@@ -796,29 +800,29 @@ function switchTab(btn, id) {
 function showCrudModal(table, pk_col, fields, title, record = null) {
     const modal = document.getElementById('crud-modal');
     const content = document.getElementById('crud-modal-content');
-    
+
     let html = `<h3>${title}</h3>`;
     html += `<form id="crud-form" onsubmit="event.preventDefault(); saveCrud('${table}', '${pk_col}', ${record ? 'true' : 'false'});">`;
     html += `<div style="max-height: 60vh; overflow-y: auto; padding-right: 10px;">`;
-    
+
     fields.forEach(field => {
         let val = record ? (record[field] || '') : '';
         // If it's a date field, attempt to format it
         if (field.includes('ngay_sinh') && val) {
             val = val.split('T')[0];
         }
-        
+
         // Disabled PK when editing
         const isReadonly = record && field === pk_col ? 'readonly' : '';
         const bg = isReadonly ? 'background:#f0f0f0;' : '';
-        
+
         html += `
         <div class="form-group">
             <label>${field.toUpperCase()}</label>
             <input type="text" id="input_${field}" value="${val}" ${isReadonly} style="${bg}" required>
         </div>`;
     });
-    
+
     html += `</div>`;
     html += `
         <div class="modal-actions">
@@ -826,10 +830,10 @@ function showCrudModal(table, pk_col, fields, title, record = null) {
             <button type="submit" class="btn btn-primary">Lưu lại</button>
         </div>
     </form>`;
-    
+
     // Lưu tạm danh sách field để lúc submit lấy
     window.currentCrudFields = fields;
-    
+
     content.innerHTML = html;
     modal.classList.add('show');
 }
@@ -840,9 +844,9 @@ async function saveCrud(table, pk_col, isEdit) {
     fields.forEach(field => {
         dataObj[field] = document.getElementById(`input_${field}`).value;
     });
-    
+
     const pk_val = dataObj[pk_col];
-    
+
     const payload = {
         pk_col: pk_col,
         pk_val: pk_val,
@@ -850,13 +854,13 @@ async function saveCrud(table, pk_col, isEdit) {
     };
 
     const method = isEdit ? 'PUT' : 'POST';
-    
+
     try {
         const data = await api(`${API}/crud/${table}`, {
             method: method,
             body: JSON.stringify(payload)
         });
-        
+
         if (data.success) {
             alert(data.message);
             document.getElementById('crud-modal').classList.remove('show');
@@ -871,7 +875,7 @@ async function saveCrud(table, pk_col, isEdit) {
 
 async function deleteCrud(table, pk_col, pk_val) {
     if (!confirm(`Bạn có chắc chắn muốn xóa dữ liệu có mã: ${pk_val}?`)) return;
-    
+
     const payload = {
         pk_col: pk_col,
         pk_val: pk_val
@@ -882,7 +886,7 @@ async function deleteCrud(table, pk_col, pk_val) {
             method: 'DELETE',
             body: JSON.stringify(payload)
         });
-        
+
         if (data.success) {
             alert(data.message);
             loadPage('quan-ly'); // Reload
@@ -909,11 +913,11 @@ async function renderThongKe(el, user) {
     el.innerHTML = `
         <div class="page-header"><h2>Thống kê Toàn trường</h2></div>
         <div class="stats-grid">
-            <div class="stat-card"><div class="num">${tk.tong_sv||0}</div><div class="label">Sinh viên</div></div>
-            <div class="stat-card"><div class="num">${tk.tong_gv||0}</div><div class="label">Giảng viên</div></div>
-            <div class="stat-card"><div class="num">${tk.tong_lop||0}</div><div class="label">Lớp HP</div></div>
-            <div class="stat-card"><div class="num">${tk.tong_dk||0}</div><div class="label">Đăng ký</div></div>
-            <div class="stat-card"><div class="num">${tk.tong_hp||0}</div><div class="label">Học phần</div></div>
+            <div class="stat-card"><div class="num">${tk.tong_sv || 0}</div><div class="label">Sinh viên</div></div>
+            <div class="stat-card"><div class="num">${tk.tong_gv || 0}</div><div class="label">Giảng viên</div></div>
+            <div class="stat-card"><div class="num">${tk.tong_lop || 0}</div><div class="label">Lớp HP</div></div>
+            <div class="stat-card"><div class="num">${tk.tong_dk || 0}</div><div class="label">Đăng ký</div></div>
+            <div class="stat-card"><div class="num">${tk.tong_hp || 0}</div><div class="label">Học phần</div></div>
         </div>
         <div class="card"><h3>Theo cơ sở</h3>
             <div class="table-wrap"><table>
@@ -942,10 +946,10 @@ async function renderNhatKy(el, user) {
                 <thead><tr><th>STT</th><th>Người dùng</th><th>Hành động</th><th>Chi tiết</th><th>Thời gian</th></tr></thead>
                 <tbody>
                     ${!nk.length ? '<tr><td colspan="5" style="text-align:center;color:#999">Chưa có nhật ký</td></tr>' : ''}
-                    ${nk.map((r,i) => `<tr>
-                        <td>${i+1}</td><td>${r.nguoi_dung}</td>
+                    ${nk.map((r, i) => `<tr>
+                        <td>${i + 1}</td><td>${r.nguoi_dung}</td>
                         <td><span class="badge badge-info">${r.hanh_dong}</span></td>
-                        <td>${r.chi_tiet||''}</td>
+                        <td>${r.chi_tiet || ''}</td>
                         <td>${new Date(r.thoi_gian).toLocaleString('vi-VN')}</td>
                     </tr>`).join('')}
                 </tbody>
@@ -958,7 +962,7 @@ async function renderNhatKy(el, user) {
 // ============================================================
 async function renderPhanTan(el, user) {
     if (user.role !== 'admin') { el.innerHTML = '<p>Không có quyền.</p>'; return; }
-    
+
     el.innerHTML = `
         <div class="page-header"><h2>Truy vấn Phân tán Cấp cao</h2></div>
         <div class="card">
@@ -977,17 +981,17 @@ async function renderPhanTan(el, user) {
     `;
 }
 
-window.runTruyVanPhanTan = async function(loai) {
+window.runTruyVanPhanTan = async function (loai) {
     const resEl = document.getElementById('pt-result');
     resEl.innerHTML = '<div style="padding:2rem;text-align:center;"><span class="loader" style="border-color:#1a73e8; border-top-color:transparent; width:30px; height:30px;"></span><br><br>Đang Query qua các Linked Server (HD, CG, NT)...</div>';
-    
+
     const pt = await api(`${API}/tru-van-phan-tan/${loai}`);
-    
+
     if (pt.success && pt.data && pt.data.length > 0) {
         const cols = Object.keys(pt.data[0]);
         let thead = '<tr>' + cols.map(c => `<th>${c.toUpperCase()}</th>`).join('') + '</tr>';
         let tbody = pt.data.map(r => '<tr>' + cols.map(c => `<td>${r[c] !== null ? r[c] : ''}</td>`).join('') + '</tr>').join('');
-        
+
         resEl.innerHTML = `
             <div class="table-wrap">
                 <table>
@@ -1013,7 +1017,7 @@ let _dkDayData = [];
 
 async function renderDangKyDay(el, user) {
     if (user.role !== 'giangvien') { el.innerHTML = '<p>Không có quyền.</p>'; return; }
-    
+
     el.innerHTML = '<div class="page-loading">Đang tải dữ liệu...</div>';
 
     const [allLopHP, dsGiangVien, dsKhoa] = await Promise.all([
@@ -1090,7 +1094,7 @@ function renderDangKyDayTable(ma_gv) {
             `<span class="badge badge-info" style="margin:2px;display:inline-block">${l.thu} tiết ${l.tiet} · ${l.phong}</span>`
         ).join('');
         const lichDisplay = lichRows || '<span style="color:#999">—</span>';
-        
+
         let actionBtn = '';
         if (r.ma_gv === ma_gv) {
             actionBtn = `<button class="btn btn-danger btn-sm" onclick="huyDay('${r.ma_lop_hp}')">Hủy dạy</button>`;
@@ -1119,12 +1123,12 @@ function renderDangKyDayTable(ma_gv) {
 async function dangKyDay(ma_lop_hp) {
     const ma_gv = getUser()?.ma_gv;
     if (!ma_gv) return;
-    
+
     if (!confirm(`Xác nhận ĐĂNG KÝ dạy lớp học phần ${ma_lop_hp}?`)) return;
 
     const msg = document.getElementById('dk-day-global-msg');
     msg.innerHTML = '<div class="alert alert-info">Đang xử lý đăng ký...</div>';
-    
+
     const data = await api(`${API}/dang-ky-day`, {
         method: 'POST',
         body: JSON.stringify({ ma_gv, ma_lop_hp }),
@@ -1132,13 +1136,13 @@ async function dangKyDay(ma_lop_hp) {
 
     if (data.success) {
         msg.innerHTML = `<div class="result-box success"><strong>Thành công!</strong><br>${data.message}</div>`;
-        
+
         // Cập nhật lại dữ liệu
         const [allLopHP] = await Promise.all([
             api(`${API}/lop-hoc-phan`)
         ]);
         _dkDayData = allLopHP || [];
-        
+
         renderDangKyDayTable(ma_gv);
     } else {
         msg.innerHTML = `<div class="result-box error"><strong>Thất bại!</strong><br>${data.message}</div>`;
@@ -1148,12 +1152,12 @@ async function dangKyDay(ma_lop_hp) {
 async function huyDay(ma_lop_hp) {
     const ma_gv = getUser()?.ma_gv;
     if (!ma_gv) return;
-    
+
     if (!confirm(`Xác nhận HỦY dạy lớp học phần ${ma_lop_hp}?`)) return;
 
     const msg = document.getElementById('dk-day-global-msg');
     msg.innerHTML = '<div class="alert alert-info">Đang xử lý hủy...</div>';
-    
+
     const data = await api(`${API}/huy-day`, {
         method: 'POST',
         body: JSON.stringify({ ma_gv, ma_lop_hp }),
@@ -1161,13 +1165,13 @@ async function huyDay(ma_lop_hp) {
 
     if (data.success) {
         msg.innerHTML = `<div class="result-box success"><strong>Hủy thành công!</strong><br>${data.message}</div>`;
-        
+
         // Cập nhật lại dữ liệu
         const [allLopHP] = await Promise.all([
             api(`${API}/lop-hoc-phan`)
         ]);
         _dkDayData = allLopHP || [];
-        
+
         renderDangKyDayTable(ma_gv);
     } else {
         msg.innerHTML = `<div class="result-box error"><strong>Thất bại!</strong><br>${data.message}</div>`;
@@ -1211,7 +1215,7 @@ function generateTKBGrid(tkbList, isGiangVien = false) {
         let tBatDau = parseInt(r.tiet_bat_dau);
         let tKetThuc = parseInt(r.tiet_ket_thuc);
         if (!tBatDau || !tKetThuc || !thu || tBatDau > 12) return;
-        
+
         matrix[tBatDau][thu] = {
             rowspan: tKetThuc - tBatDau + 1,
             ten_hp: r.ten_hp,
@@ -1247,7 +1251,7 @@ function generateTKBGrid(tkbList, isGiangVien = false) {
                 </tr>
             </thead>
             <tbody>`;
-            
+
     for (let i = 1; i <= 12; i++) {
         html += `<tr><td class="t-col">${i}</td>`;
         for (let d = 2; d <= 8; d++) {
@@ -1259,8 +1263,8 @@ function generateTKBGrid(tkbList, isGiangVien = false) {
                     <div class="tkb-subject">${cell.ten_hp || 'Lớp học phần'}</div>
                     <div class="tkb-code">${cell.ma_lop_hp}</div>
                     <div class="tkb-info">📍 ${cell.phong || 'Chưa xếp phòng'}</div>
-                    ${isGiangVien ? 
-                        `<div class="tkb-info">👥 Sinh viên: <strong>${cell.so_luong || 0}</strong></div>` : 
+                    ${isGiangVien ?
+                        `<div class="tkb-info">👥 Sinh viên: <strong>${cell.so_luong || 0}</strong></div>` :
                         (cell.gv ? `<div class="tkb-info">👨‍🏫 ${cell.gv}</div>` : '')}
                 </td>`;
             } else {
@@ -1276,4 +1280,161 @@ function generateTKBGrid(tkbList, isGiangVien = false) {
 // ============================================================
 //  BOOT
 // ============================================================
+async function renderDemoDongThoi(el, user) {
+    if (user.role !== 'admin') {
+        el.innerHTML = '<p>Không có quyền truy cập.</p>';
+        return;
+    }
+
+    el.innerHTML = `
+        <div class="card fade-in">
+            <h2 style="color: #2c3e50; font-weight: 700;">CÔNG CỤ KIỂM THỬ XỬ LÝ ĐỒNG THỜI (CONCURRENCY CONTROL)</h2>
+            <p>Hệ thống sử dụng kỹ thuật <b>Pessimistic Locking (UPDLOCK, HOLDLOCK)</b> ở mức cơ sở dữ liệu để ngăn chặn Race Condition. Công cụ này tạo ra các luồng gửi yêu cầu đồng thời ở cùng một thời điểm (mili-giây) để kiểm chứng cơ chế khóa.</p>
+            <hr>
+            
+            <div style="display: flex; gap: 20px; flex-wrap: wrap;">
+                <div class="form-group" style="flex: 1; min-width: 250px;">
+                    <label><b>Mã Lớp học phần:</b></label>
+                    <input type="text" id="demo-lop" class="form-control" value="LHP030">
+                </div>
+            </div>
+
+            <div style="display: flex; gap: 20px; flex-wrap: wrap; margin-top: 10px;">
+                <div class="form-group" style="flex: 1; min-width: 150px;">
+                    <label>Sinh viên 1:</label>
+                    <input type="text" id="demo-sv1" class="form-control" value="SV0001">
+                </div>
+                <div class="form-group" style="flex: 1; min-width: 150px;">
+                    <label>Sinh viên 2:</label>
+                    <input type="text" id="demo-sv2" class="form-control" value="SV0002">
+                </div>
+                <div class="form-group" style="flex: 1; min-width: 150px;">
+                    <label>Sinh viên 3:</label>
+                    <input type="text" id="demo-sv3" class="form-control" value="SV0003">
+                </div>
+            </div>
+
+            <div class="form-group" style="margin-top: 15px; display: flex; gap: 10px;">
+                <button class="btn btn-primary" id="btn-run-demo" style="background: #1976d2; border:none; padding: 12px 20px; font-weight: bold;">
+                    MÔ PHỎNG ĐĂNG KÝ ĐỒNG THỜI
+                </button>
+                <button class="btn btn-secondary" id="btn-reset-demo" style="background: #607d8b; color: white; border:none; padding: 12px 20px; font-weight: bold;">
+                    🔄 LÀM SẠCH VÀ RESET VỀ 1/2 CHỖ
+                </button>
+            </div>
+
+            <div id="demo-loading" class="hidden" style="margin: 15px 0;">
+                <span class="loader"></span> Đang gửi yêu cầu song song đến máy chủ...
+            </div>
+
+            <div id="demo-result" style="margin-top: 20px;"></div>
+        </div>
+    `;
+
+    document.getElementById('btn-run-demo').addEventListener('click', async () => {
+        const maLop = document.getElementById('demo-lop').value.trim();
+        const sv1 = document.getElementById('demo-sv1').value.trim();
+        const sv2 = document.getElementById('demo-sv2').value.trim();
+        const sv3 = document.getElementById('demo-sv3').value.trim();
+
+        if (!maLop || !sv1 || !sv2 || !sv3) {
+            return alert('Vui lòng nhập đầy đủ mã lớp và 3 mã sinh viên!');
+        }
+
+        const btn = document.getElementById('btn-run-demo');
+        const loader = document.getElementById('demo-loading');
+        const resultDiv = document.getElementById('demo-result');
+
+        btn.disabled = true;
+        loader.classList.remove('hidden');
+        resultDiv.innerHTML = '';
+
+        try {
+            // Hiển thị khung bảng trước
+            let html = '<table class="table" style="width:100%"><thead><tr><th>Sinh viên</th><th>Trạng thái</th><th>Kết quả trả về từ Hệ thống</th></tr></thead><tbody id="demo-tbody">';
+            const sinhViens = [sv1, sv2, sv3];
+            sinhViens.forEach(sv => {
+                html += `<tr id="row-${sv}">
+                            <td><b>${sv}</b></td>
+                            <td><span class="loader" style="width: 15px; height: 15px; display: inline-block;"></span> Đang chờ...</td>
+                            <td style="color: gray;">Đang xếp hàng trong SQL Server...</td>
+                         </tr>`;
+            });
+            html += '</tbody></table>';
+            resultDiv.innerHTML = html;
+
+            // Bắn 3 Yêu cầu CÙNG MỘT LÚC nhưng xử lý kết quả ĐỘC LẬP (Ai xong trước hiện trước)
+            const promises = sinhViens.map(sv => {
+                return api(`${API}/dang-ky-demo`, { method: 'POST', body: JSON.stringify({ ma_sv: sv, ma_lop_hp: maLop }) })
+                    .then(res => {
+                        const tr = document.getElementById(`row-${sv}`);
+                        if (res.success) {
+                            tr.style.background = '#e8f5e9';
+                            tr.innerHTML = `<td><b>${sv}</b></td>
+                                            <td><span class="status-badge" style="background:#4caf50;color:white">THÀNH CÔNG</span></td>
+                                            <td style="color:#2e7d32; font-weight:bold;">${res.message || 'Đăng ký thành công.'}</td>`;
+                        } else {
+                            tr.style.background = '#ffebee';
+                            tr.innerHTML = `<td><b>${sv}</b></td>
+                                            <td><span class="status-badge" style="background:#f44336;color:white">THẤT BẠI</span></td>
+                                            <td style="color:#c62828;">${res.message}</td>`;
+                        }
+                    })
+                    .catch(err => {
+                        const tr = document.getElementById(`row-${sv}`);
+                        tr.style.background = '#ffebee';
+                        tr.innerHTML = `<td><b>${sv}</b></td>
+                                        <td><span class="status-badge" style="background:red;color:white">LỖI</span></td>
+                                        <td style="color:red;">${err.message}</td>`;
+                    });
+            });
+
+            await Promise.all(promises);
+
+        } catch (err) {
+            resultDiv.innerHTML = `<p style="color:red">Lỗi: ${err.message}</p>`;
+        } finally {
+            btn.disabled = false;
+            loader.classList.add('hidden');
+        }
+    });
+
+    document.getElementById('btn-reset-demo').addEventListener('click', async () => {
+        const maLop = document.getElementById('demo-lop').value.trim();
+        const sv1 = document.getElementById('demo-sv1').value.trim();
+        const sv2 = document.getElementById('demo-sv2').value.trim();
+        const sv3 = document.getElementById('demo-sv3').value.trim();
+
+        if (!maLop || !sv1 || !sv2 || !sv3) {
+            return alert('Vui lòng nhập đầy đủ mã lớp và 3 mã sinh viên!');
+        }
+
+        if (!confirm(`Bạn có chắc muốn Reset lớp ${maLop} về 1/2 chỗ trống và XÓA đăng ký của 3 sinh viên này?`)) return;
+
+        try {
+            const btn = document.getElementById('btn-reset-demo');
+            btn.disabled = true;
+            btn.innerHTML = "Đang Reset...";
+
+            const res = await api(`${API}/reset-demo`, {
+                method: 'POST',
+                body: JSON.stringify({ ma_lop_hp: maLop, sv1: sv1, sv2: sv2, sv3: sv3 })
+            });
+
+            if (res.success) {
+                alert('✅ Đã Reset thành công! Sẵn sàng bắn 3 luồng test mới.');
+                document.getElementById('demo-result').innerHTML = ''; // Xóa bảng cũ
+            } else {
+                alert('❌ Lỗi: ' + res.message);
+            }
+        } catch (err) {
+            alert('Lỗi: ' + err.message);
+        } finally {
+            const btn = document.getElementById('btn-reset-demo');
+            btn.disabled = false;
+            btn.innerHTML = "🔄 LÀM SẠCH VÀ RESET VỀ 1/2 CHỖ";
+        }
+    });
+}
+
 document.addEventListener('DOMContentLoaded', router);

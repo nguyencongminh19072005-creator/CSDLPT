@@ -1,15 +1,11 @@
 * { margin: 0; padding: 0; box-sizing: border-box; }
-
 body {
     font-family: 'Segoe UI', Arial, sans-serif;
     background: #f0f2f5;
     color: #1a1a2e;
     min-height: 100vh;
 }
-
 a { text-decoration: none; color: inherit; }
-
-/* === NAVBAR === */
 .navbar {
     background: #1a73e8;
     color: #fff;
@@ -23,27 +19,23 @@ a { text-decoration: none; color: inherit; }
     z-index: 100;
     box-shadow: 0 2px 8px rgba(0,0,0,0.15);
 }
-
 .navbar-brand {
     font-size: 1.2rem;
     font-weight: 700;
     letter-spacing: 0.5px;
 }
-
 .navbar-user {
     display: flex;
     align-items: center;
     gap: 1rem;
     font-size: 0.9rem;
 }
-
 .navbar-user .role-badge {
     background: rgba(255,255,255,0.2);
     padding: 2px 10px;
     border-radius: 12px;
     font-size: 0.8rem;
 }
-
 .btn-logout {
     background: rgba(255,255,255,0.15);
     border: 1px solid rgba(255,255,255,0.3);
@@ -54,13 +46,10 @@ a { text-decoration: none; color: inherit; }
     font-size: 0.85rem;
 }
 .btn-logout:hover { background: rgba(255,255,255,0.25); }
-
-/* === SIDEBAR === */
 .layout {
     display: flex;
     min-height: calc(100vh - 56px);
 }
-
 .sidebar {
     width: 220px;
     background: #fff;
@@ -68,7 +57,6 @@ a { text-decoration: none; color: inherit; }
     padding: 1.5rem 0;
     flex-shrink: 0;
 }
-
 .sidebar a {
     display: block;
     padding: 0.7rem 1.5rem;
@@ -86,14 +74,11 @@ a { text-decoration: none; color: inherit; }
     letter-spacing: 1px;
     margin-top: 0.5rem;
 }
-
-/* === MAIN CONTENT === */
 .main {
     flex: 1;
     padding: 2rem;
     max-width: 1200px;
 }
-
 .page-header {
     margin-bottom: 1.5rem;
 }
@@ -103,8 +88,6 @@ a { text-decoration: none; color: inherit; }
     margin-bottom: 0.3rem;
 }
 .page-header p { color: #666; font-size: 0.9rem; }
-
-/* === CARDS === */
 .card {
     background: #fff;
     border-radius: 10px;
@@ -119,8 +102,6 @@ a { text-decoration: none; color: inherit; }
     padding-bottom: 0.5rem;
     border-bottom: 1px solid #eee;
 }
-
-/* === STAT CARDS === */
 .stats-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
@@ -144,8 +125,6 @@ a { text-decoration: none; color: inherit; }
     color: #666;
     margin-top: 0.3rem;
 }
-
-/* === TABLES === */
 .table-wrap { overflow-x: auto; }
 table {
     width: 100%;
@@ -176,8 +155,6 @@ tbody tr:hover { background: #f8f9fa; }
 .badge-danger  { background: #fce8e6; color: #c5221f; }
 .badge-warning { background: #fef7e0; color: #e37400; }
 .badge-info    { background: #e8f0fe; color: #1a73e8; }
-
-/* === FORMS === */
 .form-row {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
@@ -202,8 +179,6 @@ input, select {
     transition: border-color 0.2s;
 }
 input:focus, select:focus { border-color: #1a73e8; box-shadow: 0 0 0 3px rgba(26,115,232,0.12); }
-
-/* === BUTTONS === */
 .btn {
     display: inline-flex;
     align-items: center;
@@ -226,8 +201,6 @@ input:focus, select:focus { border-color: #1a73e8; box-shadow: 0 0 0 3px rgba(26
 .btn-secondary:hover { background: #e0e0e0; }
 .btn-sm { padding: 0.35rem 0.8rem; font-size: 0.8rem; }
 .btn:disabled { opacity: 0.6; cursor: not-allowed; }
-
-/* === ALERTS === */
 .alert {
     padding: 0.8rem 1rem;
     border-radius: 6px;
@@ -237,8 +210,6 @@ input:focus, select:focus { border-color: #1a73e8; box-shadow: 0 0 0 3px rgba(26
 .alert-success { background: #e6f4ea; color: #1e7e34; border: 1px solid #c3e6cb; }
 .alert-error   { background: #fce8e6; color: #c5221f; border: 1px solid #f5c6cb; }
 .alert-info    { background: #e8f0fe; color: #1a73e8; border: 1px solid #c2d9fb; }
-
-/* === RESULT BOX === */
 .result-box {
     padding: 1rem;
     border-radius: 8px;
@@ -248,8 +219,6 @@ input:focus, select:focus { border-color: #1a73e8; box-shadow: 0 0 0 3px rgba(26
 }
 .result-box.success { background: #e6f4ea; color: #1e7e34; border: 1px solid #c3e6cb; }
 .result-box.error   { background: #fce8e6; color: #c5221f; border: 1px solid #f5c6cb; }
-
-/* === LOGIN === */
 .login-page {
     min-height: 100vh;
     display: flex;
@@ -272,8 +241,6 @@ input:focus, select:focus { border-color: #1a73e8; box-shadow: 0 0 0 3px rgba(26
 }
 .login-box .sub { color: #666; font-size: 0.85rem; text-align: center; margin-bottom: 1.5rem; }
 .login-box .form-group { margin-bottom: 1rem; }
-
-/* === LOADING === */
 .loader {
     width: 16px; height: 16px;
     border: 2px solid rgba(255,255,255,0.3);
@@ -283,8 +250,6 @@ input:focus, select:focus { border-color: #1a73e8; box-shadow: 0 0 0 3px rgba(26
     display: inline-block;
 }
 @keyframes spin { to { transform: rotate(360deg); } }
-
-/* === SCHEDULE TABLE === */
 .schedule-grid {
     display: grid;
     grid-template-columns: 60px repeat(7, 1fr);
@@ -314,8 +279,6 @@ input:focus, select:focus { border-color: #1a73e8; box-shadow: 0 0 0 3px rgba(26
     margin-bottom: 0.2rem;
     border-left: 3px solid #1a73e8;
 }
-
-/* === MODAL === */
 .modal {
     display: none;
     position: fixed;
@@ -335,8 +298,6 @@ input:focus, select:focus { border-color: #1a73e8; box-shadow: 0 0 0 3px rgba(26
 }
 .modal-box h3 { margin-bottom: 1rem; }
 .modal-actions { display: flex; gap: 0.5rem; justify-content: flex-end; margin-top: 1rem; }
-
-/* === TABS === */
 .tabs {
     display: flex;
     border-bottom: 2px solid #e0e0e0;
@@ -359,14 +320,8 @@ input:focus, select:focus { border-color: #1a73e8; box-shadow: 0 0 0 3px rgba(26
 .tab-btn.active { color: #1a73e8; border-bottom-color: #1a73e8; }
 .tab-content { display: none; }
 .tab-content.active { display: block; }
-
-/* === HIDDEN === */
 .hidden { display: none !important; }
-
-/* === PAGINATION info === */
 .info-text { color: #666; font-size: 0.85rem; margin-bottom: 0.8rem; }
-
-/* === DEADLOCK TEST === */
 .test-result { margin-top: 1rem; }
 .test-result .item {
     display: flex;
