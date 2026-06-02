@@ -250,9 +250,8 @@ def api_dang_ky():
 @app.route("/api/dang-ky-demo-barrier", methods=["POST"])
 def api_dang_ky_demo_barrier():
     import threading
-    import urllib.request
-    import urllib.error
-    import json
+    import pyodbc
+    from backend.config import Config
     
     data = request.get_json()
     ma_sv_list = data.get("ma_sv_list", [])
@@ -261,40 +260,40 @@ def api_dang_ky_demo_barrier():
     if not ma_sv_list or not ma_lop_hp:
         return jsonify({"success": False, "message": "Thiếu thông tin."}), 400
 
+    cfg = Config()
+    # Ép buộc chỉ kết nối thẳng lên Trung tâm (Hà Đông)
+    conn_str = cfg.hd_connection_string
+    sp_name = "sp_DangKyHocPhan_TrungTam"
+
     results = {}
     barrier = threading.Barrier(len(ma_sv_list))
     lock = threading.Lock()
-    
-    # Lấy chính xác địa chỉ URL hiện tại của Server (VD: http://127.0.0.1:5000/api/dang-ky)
-    api_url = request.host_url + "api/dang-ky"
 
     def worker(sv):
-        # 1. Các Thread khởi tạo xong sẽ bị chặn lại ở đây
-        barrier.wait() 
-        
-        # 2. Barrier vỡ -> Tất cả đồng loạt gọi API Đăng Ký bằng urllib
+        conn = None
+        cursor = None
         try:
-            req = urllib.request.Request(api_url, method="POST")
-            req.add_header('Content-Type', 'application/json')
-            payload = json.dumps({"ma_sv": sv, "ma_lop_hp": ma_lop_hp}).encode('utf-8')
+            # Mở kết nối riêng cho từng Thread lên Trung Tâm
+            conn = pyodbc.connect(conn_str, autocommit=False)
+            cursor = conn.cursor()
             
-            with urllib.request.urlopen(req, data=payload) as response:
-                res_data = json.loads(response.read().decode())
-                with lock:
-                    results[sv] = res_data
-                    
-        except urllib.error.HTTPError as e:
-            # Bắt lỗi HTTP 400 để đọc câu thông báo JSON (VD: Hết chỗ, Trùng lịch...)
-            try:
-                error_data = json.loads(e.read().decode())
-                with lock:
-                    results[sv] = error_data
-            except:
-                with lock:
-                    results[sv] = {"success": False, "message": f"HTTP Error {e.code}"}
-        except Exception as e:
+            # Đợi tất cả kết nối xong mới phá rào
+            barrier.wait() 
+            
+            # Cùng lúc đâm lệnh vào CSDL Hà Đông
+            cursor.execute(f"EXEC {sp_name} @ma_sv=?, @ma_lop_hp=?", (sv, ma_lop_hp))
+            conn.commit()
+            
             with lock:
-                results[sv] = {"success": False, "message": str(e)}
+                results[sv] = {"success": True, "message": "Đăng ký thành công"}
+        except Exception as e:
+            if conn: conn.rollback()
+            msg = str(e.args[1]) if len(e.args) > 1 else str(e)
+            with lock:
+                results[sv] = {"success": False, "message": msg}
+        finally:
+            if cursor: cursor.close()
+            if conn: conn.close()
 
     # Tạo và khởi động các luồng
     threads = []
@@ -373,26 +372,40 @@ def api_reset_demo():
     try:
         conn = get_connection()
         cursor = conn.cursor()
+        
+        # 1. Reset dữ liệu ở Trung tâm (Hà Đông) nếu mạng đang thông
+        try:
+            from backend.config import Config
+            cfg = Config()
+            conn_hd = pyodbc.connect(cfg.hd_connection_string, autocommit=True)
+            cur_hd = conn_hd.cursor()
+            cur_hd.execute("DELETE FROM dbo.dang_ky WHERE ma_lop_hp = ?", (ma_lop_hp,))
+            cur_hd.execute("UPDATE dbo.lop_hoc_phan SET si_so_toi_da = 2, so_luong_da_dang_ky = 1 WHERE ma_lop_hp = ?", (ma_lop_hp,))
+            conn_hd.close()
+        except Exception:
+            pass # Bỏ qua nếu Hà Đông đang bị tắt mạng (Test kịch bản Fallback)
+
+        # 2. Reset dữ liệu ở Cục bộ / Chéo
         if SITE_CODE == "HD":
-            cursor.execute("DELETE FROM dbo.dang_ky WHERE ma_lop_hp = ? AND ma_sv IN (?, ?, ?)", (ma_lop_hp, sv1, sv2, sv3))
+            cursor.execute("DELETE FROM dbo.dang_ky WHERE ma_lop_hp = ?", (ma_lop_hp,))
             cursor.execute("UPDATE dbo.lop_hoc_phan SET si_so_toi_da = 2, so_luong_da_dang_ky = 1 WHERE ma_lop_hp = ?", (ma_lop_hp,))
         else:
             # Kiểm tra xem lớp học phần này có nằm ở CSDL Cục bộ hiện tại không
             cursor.execute("SELECT 1 FROM dbo.lop_hoc_phan WHERE ma_lop_hp = ?", (ma_lop_hp,))
             if cursor.fetchone():
                 # Lớp nằm ở Cục bộ -> Xóa trực tiếp
-                cursor.execute("DELETE FROM dbo.dang_ky WHERE ma_lop_hp = ? AND ma_sv IN (?, ?, ?)", (ma_lop_hp, sv1, sv2, sv3))
+                cursor.execute("DELETE FROM dbo.dang_ky WHERE ma_lop_hp = ?", (ma_lop_hp,))
                 cursor.execute("UPDATE dbo.lop_hoc_phan SET si_so_toi_da = 2, so_luong_da_dang_ky = 1 WHERE ma_lop_hp = ?", (ma_lop_hp,))
             else:
                 # Lớp KHÔNG NẰM Ở CỤC BỘ -> Dùng Linked Server để xóa chéo sang cơ sở kia
                 site_db = "QLDT_CauGiay" if SITE_CODE == "NT" else "QLDT_NT"
                 linked_server = "SITE_CG" if SITE_CODE == "NT" else "SITE_NT"
                 
-                cursor.execute(f"DELETE FROM [{linked_server}].[{site_db}].dbo.dang_ky WHERE ma_lop_hp = ? AND ma_sv IN (?, ?, ?)", (ma_lop_hp, sv1, sv2, sv3))
+                cursor.execute(f"DELETE FROM [{linked_server}].[{site_db}].dbo.dang_ky WHERE ma_lop_hp = ?", (ma_lop_hp,))
                 cursor.execute(f"UPDATE [{linked_server}].[{site_db}].dbo.lop_hoc_phan SET si_so_toi_da = 2, so_luong_da_dang_ky = 1 WHERE ma_lop_hp = ?", (ma_lop_hp,))
                 
         conn.commit()
-        return jsonify({"success": True, "message": "Đã reset lớp thành công!"}), 200
+        return jsonify({"success": True, "message": "Đã reset lớp thành công trên toàn hệ thống!"}), 200
     except Exception as e:
         if 'conn' in locals() and conn:
             conn.rollback()
