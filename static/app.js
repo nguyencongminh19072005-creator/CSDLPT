@@ -1,4 +1,4 @@
-// ============================================================
+﻿// ============================================================
 //  app.js — SPA router cho CSDLPTBTL
 // ============================================================
 const API = '/api';
@@ -127,7 +127,7 @@ function renderApp(user, route) {
             { h: 'trang-chu', l: 'Trang chủ', i: '🏠' },
             { h: 'quan-ly', l: 'Quản lý Dữ liệu', i: '⚙️' },
             { h: 'thong-ke', l: 'Thống kê', i: '📊' },
-            { h: 'nhat-ky', l: 'Nhật ký Hệ thống', i: '📜' },
+
             { h: 'phan-tan', l: 'Truy vấn Phân tán', i: '🔗' },
             { h: 'demo', l: 'Demo Đồng Thời', i: '🚀' },
         ]
@@ -197,7 +197,6 @@ async function loadPage(route) {
         case 'ket-qua': await renderKetQua(el, user); break;
         case 'quan-ly': await renderQuanLy(el, user); break;
         case 'thong-ke': await renderThongKe(el, user); break;
-        case 'nhat-ky': await renderNhatKy(el, user); break;
         case 'phan-tan': await renderPhanTan(el, user); break;
         case 'demo': await renderDemoDongThoi(el, user); break;
         case 'dang-ky-day': await renderDangKyDay(el, user); break;

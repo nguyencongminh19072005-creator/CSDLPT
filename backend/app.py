@@ -126,11 +126,11 @@ def get_lop_hoc_phan():
                    lhp.si_so_toi_da, lhp.so_luong_da_dang_ky,
                    (lhp.si_so_toi_da - lhp.so_luong_da_dang_ky) AS con_trong,
                    hp.ma_khoa
-            FROM [LINK_TRUNGTAM].[QLDT_HADONG].[dbo].lop_hoc_phan lhp
-            LEFT JOIN [LINK_TRUNGTAM].[QLDT_HADONG].[dbo].hoc_phan hp ON lhp.ma_hp = hp.ma_hp
-            LEFT JOIN [LINK_TRUNGTAM].[QLDT_HADONG].[dbo].giang_vien gv ON lhp.ma_gv = gv.ma_gv
-            LEFT JOIN [LINK_TRUNGTAM].[QLDT_HADONG].[dbo].phong_hoc ph ON lhp.ma_phong = ph.ma_phong
-            LEFT JOIN [LINK_TRUNGTAM].[QLDT_HADONG].[dbo].co_so cs ON lhp.ma_co_so = cs.ma_co_so
+            FROM [SITE_HD].[QLDT_HADONG].[dbo].lop_hoc_phan lhp
+            LEFT JOIN [SITE_HD].[QLDT_HADONG].[dbo].hoc_phan hp ON lhp.ma_hp = hp.ma_hp
+            LEFT JOIN [SITE_HD].[QLDT_HADONG].[dbo].giang_vien gv ON lhp.ma_gv = gv.ma_gv
+            LEFT JOIN [SITE_HD].[QLDT_HADONG].[dbo].phong_hoc ph ON lhp.ma_phong = ph.ma_phong
+            LEFT JOIN [SITE_HD].[QLDT_HADONG].[dbo].co_so cs ON lhp.ma_co_so = cs.ma_co_so
         """
         conditions = []
         params = []
@@ -151,8 +151,8 @@ def get_lop_hoc_phan():
                 lich = execute_query("""
                     SELECT lh.ma_lop_hp, lh.thu, lh.tiet_bat_dau, lh.tiet_ket_thuc,
                            lh.ma_phong, ph.ten_phong
-                    FROM [LINK_TRUNGTAM].[QLDT_HADONG].[dbo].lich_hoc lh
-                    LEFT JOIN [LINK_TRUNGTAM].[QLDT_HADONG].[dbo].phong_hoc ph ON lh.ma_phong = ph.ma_phong
+                    FROM [SITE_HD].[QLDT_HADONG].[dbo].lich_hoc lh
+                    LEFT JOIN [SITE_HD].[QLDT_HADONG].[dbo].phong_hoc ph ON lh.ma_phong = ph.ma_phong
                 """)
             except Exception as e:
                 print("Lỗi Linked Server, Fallback về Local:", e)
@@ -228,7 +228,13 @@ def api_dang_ky():
     ma_lop_hp = data.get("ma_lop_hp", "").strip()
     if not ma_sv or not ma_lop_hp:
         return jsonify({"success": False, "message": "Thiếu mã SV hoặc mã LHP."}), 400
-    sp_name = "sp_DangKyHocPhan_TrungTam" if SITE_CODE == "HD" else "sp_dang_ky_hoc_phan"
+    if SITE_CODE == "HD":
+        sp_name = "sp_DangKyHocPhan_DieuPhoi"
+    elif SITE_CODE == "CG":
+        sp_name = "sp_DangKyHocPhan_Local_CG"
+    else:
+        sp_name = "sp_DangKyHocPhan_Local_NT"
+
     result = execute_procedure(sp_name, (ma_sv, ma_lop_hp))
     if result["success"]:
         _log(ma_sv, "DANG_KY", f"SV {ma_sv} đăng ký {ma_lop_hp} THÀNH CÔNG")
@@ -242,7 +248,13 @@ def api_dang_ky_demo():
     ma_lop_hp = data.get("ma_lop_hp", "").strip()
     if not ma_sv or not ma_lop_hp:
         return jsonify({"success": False, "message": "Thiếu thông tin."}), 400
-    sp_name = "sp_DangKyHocPhan_TrungTam" if SITE_CODE == "HD" else "sp_dang_ky_hoc_phan"
+    if SITE_CODE == "HD":
+        sp_name = "sp_DangKyHocPhan_DieuPhoi"
+    elif SITE_CODE == "CG":
+        sp_name = "sp_DangKyHocPhan_Local_CG"
+    else:
+        sp_name = "sp_DangKyHocPhan_Local_NT"
+        
     import pyodbc
     from config import Config
     cfg = Config()
@@ -543,71 +555,58 @@ def truy_van_phan_tan_nang_cao(loai):
         cursor = conn.cursor()
         if loai == 1:
             query = """
-            SELECT N'Hà Đông' AS ten_co_so, COUNT(*) AS so_luot_dang_ky
-            FROM [SITE_HD].[QLDT_HADONG].dbo.dang_ky
-            UNION ALL
             SELECT N'Cầu Giấy' AS ten_co_so, COUNT(*) AS so_luot_dang_ky
             FROM [SITE_CG].[QLDT_CauGiay].dbo.dang_ky
+            WHERE trang_thai = N'THANH_CONG'
             UNION ALL
             SELECT N'Ngọc Trục' AS ten_co_so, COUNT(*) AS so_luot_dang_ky
-            FROM [SITE_NT].[QLDT_NT].dbo.dang_ky;
+            FROM [SITE_NT].[QLDT_NT].dbo.dang_ky
+            WHERE trang_thai = N'THANH_CONG';
             """
         elif loai == 2:
             query = """
-            WITH tat_ca_dang_ky AS (
-                SELECT hp.ma_hp, hp.ten_hp, COUNT(dk.ma_sv) AS so_luot_dang_ky
-                FROM [SITE_HD].[QLDT_HADONG].dbo.lop_hoc_phan lhp
-                JOIN [SITE_HD].[QLDT_HADONG].dbo.hoc_phan hp ON lhp.ma_hp = hp.ma_hp
-                LEFT JOIN [SITE_HD].[QLDT_HADONG].dbo.dang_ky dk ON lhp.ma_lop_hp = dk.ma_lop_hp
-                GROUP BY hp.ma_hp, hp.ten_hp
-                UNION ALL
-                SELECT hp.ma_hp, hp.ten_hp, COUNT(dk.ma_sv) AS so_luot_dang_ky
-                FROM [SITE_CG].[QLDT_CauGiay].dbo.lop_hoc_phan lhp
+            WITH tong_dang_ky_hp AS (
+                SELECT lhp.ma_hp, hp.ten_hp, COUNT(*) AS so_luong
+                FROM [SITE_CG].[QLDT_CauGiay].dbo.dang_ky dk
+                JOIN [SITE_CG].[QLDT_CauGiay].dbo.lop_hoc_phan lhp ON dk.ma_lop_hp = lhp.ma_lop_hp
                 JOIN [SITE_CG].[QLDT_CauGiay].dbo.hoc_phan hp ON lhp.ma_hp = hp.ma_hp
-                LEFT JOIN [SITE_CG].[QLDT_CauGiay].dbo.dang_ky dk ON lhp.ma_lop_hp = dk.ma_lop_hp
-                GROUP BY hp.ma_hp, hp.ten_hp
+                WHERE dk.trang_thai = N'THANH_CONG'
+                GROUP BY lhp.ma_hp, hp.ten_hp
                 UNION ALL
-                SELECT hp.ma_hp, hp.ten_hp, COUNT(dk.ma_sv) AS so_luot_dang_ky
-                FROM [SITE_NT].[QLDT_NT].dbo.lop_hoc_phan lhp
+                SELECT lhp.ma_hp, hp.ten_hp, COUNT(*) AS so_luong
+                FROM [SITE_NT].[QLDT_NT].dbo.dang_ky dk
+                JOIN [SITE_NT].[QLDT_NT].dbo.lop_hoc_phan lhp ON dk.ma_lop_hp = lhp.ma_lop_hp
                 JOIN [SITE_NT].[QLDT_NT].dbo.hoc_phan hp ON lhp.ma_hp = hp.ma_hp
-                LEFT JOIN [SITE_NT].[QLDT_NT].dbo.dang_ky dk ON lhp.ma_lop_hp = dk.ma_lop_hp
-                GROUP BY hp.ma_hp, hp.ten_hp
+                WHERE dk.trang_thai = N'THANH_CONG'
+                GROUP BY lhp.ma_hp, hp.ten_hp
             )
-            SELECT TOP 1 ma_hp, ten_hp, SUM(so_luot_dang_ky) AS tong_so_luot_dang_ky
-            FROM tat_ca_dang_ky
+            SELECT TOP 1 ma_hp, ten_hp, SUM(so_luong) AS tong_so_luong_dang_ky
+            FROM tong_dang_ky_hp
             GROUP BY ma_hp, ten_hp
-            ORDER BY tong_so_luot_dang_ky DESC;
+            ORDER BY tong_so_luong_dang_ky DESC;
             """
         elif loai == 3:
             query = """
             WITH tat_ca_sinh_vien AS (
-                SELECT ma_sv, ho_ten, ma_co_so AS co_so_sinh_vien FROM [SITE_HD].[QLDT_HADONG].dbo.sinh_vien
+                SELECT ma_sv, ho_ten, ma_co_so AS co_so_sinh_vien FROM [SITE_CG].[QLDT_CauGiay].dbo.sinh_vien WHERE da_xoa = 0
                 UNION ALL
-                SELECT ma_sv, ho_ten, ma_co_so AS co_so_sinh_vien FROM [SITE_CG].[QLDT_CauGiay].dbo.sinh_vien
-                UNION ALL
-                SELECT ma_sv, ho_ten, ma_co_so AS co_so_sinh_vien FROM [SITE_NT].[QLDT_NT].dbo.sinh_vien
+                SELECT ma_sv, ho_ten, ma_co_so AS co_so_sinh_vien FROM [SITE_NT].[QLDT_NT].dbo.sinh_vien WHERE da_xoa = 0
             ),
             tat_ca_dang_ky AS (
-                SELECT dk.ma_sv, dk.ma_lop_hp FROM [SITE_HD].[QLDT_HADONG].dbo.dang_ky dk
+                SELECT ma_sv, ma_lop_hp, ma_co_so AS co_so_dang_ky FROM [SITE_CG].[QLDT_CauGiay].dbo.dang_ky WHERE trang_thai = N'THANH_CONG'
                 UNION ALL
-                SELECT dk.ma_sv, dk.ma_lop_hp FROM [SITE_CG].[QLDT_CauGiay].dbo.dang_ky dk
-                UNION ALL
-                SELECT dk.ma_sv, dk.ma_lop_hp FROM [SITE_NT].[QLDT_NT].dbo.dang_ky dk
+                SELECT ma_sv, ma_lop_hp, ma_co_so AS co_so_dang_ky FROM [SITE_NT].[QLDT_NT].dbo.dang_ky WHERE trang_thai = N'THANH_CONG'
             ),
             tat_ca_lop AS (
-                SELECT lhp.ma_lop_hp, lhp.ma_hp, lhp.ma_co_so AS co_so_lop, hp.ten_hp
-                FROM [SITE_HD].[QLDT_HADONG].dbo.lop_hoc_phan lhp
-                JOIN [SITE_HD].[QLDT_HADONG].dbo.hoc_phan hp ON lhp.ma_hp = hp.ma_hp
-                UNION ALL
-                SELECT lhp.ma_lop_hp, lhp.ma_hp, lhp.ma_co_so AS co_so_lop, hp.ten_hp
+                SELECT lhp.ma_lop_hp, lhp.ma_co_so AS co_so_lop, hp.ten_hp
                 FROM [SITE_CG].[QLDT_CauGiay].dbo.lop_hoc_phan lhp
                 JOIN [SITE_CG].[QLDT_CauGiay].dbo.hoc_phan hp ON lhp.ma_hp = hp.ma_hp
                 UNION ALL
-                SELECT lhp.ma_lop_hp, lhp.ma_hp, lhp.ma_co_so AS co_so_lop, hp.ten_hp
+                SELECT lhp.ma_lop_hp, lhp.ma_co_so AS co_so_lop, hp.ten_hp
                 FROM [SITE_NT].[QLDT_NT].dbo.lop_hoc_phan lhp
                 JOIN [SITE_NT].[QLDT_NT].dbo.hoc_phan hp ON lhp.ma_hp = hp.ma_hp
             )
-            SELECT DISTINCT sv.ma_sv, sv.ho_ten, sv.co_so_sinh_vien, lhp.ma_lop_hp, lhp.ten_hp, lhp.co_so_lop
+            SELECT DISTINCT sv.ma_sv, sv.ho_ten, sv.co_so_sinh_vien, dk.ma_lop_hp, lhp.ten_hp, lhp.co_so_lop
             FROM tat_ca_sinh_vien sv
             JOIN tat_ca_dang_ky dk ON sv.ma_sv = dk.ma_sv
             JOIN tat_ca_lop lhp ON dk.ma_lop_hp = lhp.ma_lop_hp
@@ -615,54 +614,27 @@ def truy_van_phan_tan_nang_cao(loai):
             """
         elif loai == 4:
             query = """
-            WITH tat_ca_lop AS (
-                SELECT N'Hà Đông' AS ten_co_so, lhp.ma_lop_hp, hp.ten_hp, lhp.si_so_toi_da, COUNT(dk.ma_sv) AS so_sv_dang_ky
-                FROM [SITE_HD].[QLDT_HADONG].dbo.lop_hoc_phan lhp
-                JOIN [SITE_HD].[QLDT_HADONG].dbo.hoc_phan hp ON lhp.ma_hp = hp.ma_hp
-                LEFT JOIN [SITE_HD].[QLDT_HADONG].dbo.dang_ky dk ON lhp.ma_lop_hp = dk.ma_lop_hp
-                GROUP BY lhp.ma_lop_hp, hp.ten_hp, lhp.si_so_toi_da
-                UNION ALL
-                SELECT N'Cầu Giấy' AS ten_co_so, lhp.ma_lop_hp, hp.ten_hp, lhp.si_so_toi_da, COUNT(dk.ma_sv) AS so_sv_dang_ky
-                FROM [SITE_CG].[QLDT_CauGiay].dbo.lop_hoc_phan lhp
-                JOIN [SITE_CG].[QLDT_CauGiay].dbo.hoc_phan hp ON lhp.ma_hp = hp.ma_hp
-                LEFT JOIN [SITE_CG].[QLDT_CauGiay].dbo.dang_ky dk ON lhp.ma_lop_hp = dk.ma_lop_hp
-                GROUP BY lhp.ma_lop_hp, hp.ten_hp, lhp.si_so_toi_da
-                UNION ALL
-                SELECT N'Ngọc Trục' AS ten_co_so, lhp.ma_lop_hp, hp.ten_hp, lhp.si_so_toi_da, COUNT(dk.ma_sv) AS so_sv_dang_ky
-                FROM [SITE_NT].[QLDT_NT].dbo.lop_hoc_phan lhp
-                JOIN [SITE_NT].[QLDT_NT].dbo.hoc_phan hp ON lhp.ma_hp = hp.ma_hp
-                LEFT JOIN [SITE_NT].[QLDT_NT].dbo.dang_ky dk ON lhp.ma_lop_hp = dk.ma_lop_hp
-                GROUP BY lhp.ma_lop_hp, hp.ten_hp, lhp.si_so_toi_da
-            )
-            SELECT ten_co_so, ma_lop_hp AS ma_lhp, ten_hp, so_sv_dang_ky, si_so_toi_da, 
-                   ROUND(so_sv_dang_ky * 100.0 / si_so_toi_da, 2) AS ty_le_lap_day
-            FROM tat_ca_lop
-            ORDER BY ten_co_so, ma_lop_hp;
+            SELECT N'Cầu Giấy' AS ten_co_so, ma_lop_hp AS ma_lhp, ten_hp = 'N/A', so_luong_da_dang_ky AS so_sv_dang_ky, si_so_toi_da,
+                   CAST(so_luong_da_dang_ky * 100.0 / NULLIF(si_so_toi_da, 0) AS DECIMAL(5,2)) AS ty_le_lap_day
+            FROM [SITE_CG].[QLDT_CauGiay].dbo.lop_hoc_phan
+            UNION ALL
+            SELECT N'Ngọc Trục' AS ten_co_so, ma_lop_hp AS ma_lhp, ten_hp = 'N/A', so_luong_da_dang_ky AS so_sv_dang_ky, si_so_toi_da,
+                   CAST(so_luong_da_dang_ky * 100.0 / NULLIF(si_so_toi_da, 0) AS DECIMAL(5,2)) AS ty_le_lap_day
+            FROM [SITE_NT].[QLDT_NT].dbo.lop_hoc_phan;
             """
         elif loai == 5:
             query = """
-            WITH tat_ca_lop AS (
-                SELECT N'Hà Đông' AS ten_co_so, k.ma_khoa, k.ten_khoa, COUNT(lhp.ma_lop_hp) AS so_lop_mo
-                FROM [SITE_HD].[QLDT_HADONG].dbo.lop_hoc_phan lhp
-                JOIN [SITE_HD].[QLDT_HADONG].dbo.hoc_phan hp ON lhp.ma_hp = hp.ma_hp
-                JOIN [SITE_HD].[QLDT_HADONG].dbo.khoa k ON hp.ma_khoa = k.ma_khoa
-                GROUP BY k.ma_khoa, k.ten_khoa
-                UNION ALL
-                SELECT N'Cầu Giấy' AS ten_co_so, k.ma_khoa, k.ten_khoa, COUNT(lhp.ma_lop_hp) AS so_lop_mo
-                FROM [SITE_CG].[QLDT_CauGiay].dbo.lop_hoc_phan lhp
-                JOIN [SITE_CG].[QLDT_CauGiay].dbo.hoc_phan hp ON lhp.ma_hp = hp.ma_hp
-                JOIN [SITE_CG].[QLDT_CauGiay].dbo.khoa k ON hp.ma_khoa = k.ma_khoa
-                GROUP BY k.ma_khoa, k.ten_khoa
-                UNION ALL
-                SELECT N'Ngọc Trục' AS ten_co_so, k.ma_khoa, k.ten_khoa, COUNT(lhp.ma_lop_hp) AS so_lop_mo
-                FROM [SITE_NT].[QLDT_NT].dbo.lop_hoc_phan lhp
-                JOIN [SITE_NT].[QLDT_NT].dbo.hoc_phan hp ON lhp.ma_hp = hp.ma_hp
-                JOIN [SITE_NT].[QLDT_NT].dbo.khoa k ON hp.ma_khoa = k.ma_khoa
-                GROUP BY k.ma_khoa, k.ten_khoa
-            )
-            SELECT ten_co_so, ma_khoa, ten_khoa, so_lop_mo
-            FROM tat_ca_lop
-            ORDER BY ten_co_so, ma_khoa;
+            SELECT N'Cầu Giấy' AS ten_co_so, hp.ma_khoa, k.ten_khoa, COUNT(lhp.ma_lop_hp) AS so_lop_mo
+            FROM [SITE_CG].[QLDT_CauGiay].dbo.lop_hoc_phan lhp
+            JOIN [SITE_CG].[QLDT_CauGiay].dbo.hoc_phan hp ON lhp.ma_hp = hp.ma_hp
+            JOIN [SITE_CG].[QLDT_CauGiay].dbo.khoa k ON hp.ma_khoa = k.ma_khoa
+            GROUP BY hp.ma_khoa, k.ten_khoa
+            UNION ALL
+            SELECT N'Ngọc Trục' AS ten_co_so, hp.ma_khoa, k.ten_khoa, COUNT(lhp.ma_lop_hp) AS so_lop_mo
+            FROM [SITE_NT].[QLDT_NT].dbo.lop_hoc_phan lhp
+            JOIN [SITE_NT].[QLDT_NT].dbo.hoc_phan hp ON lhp.ma_hp = hp.ma_hp
+            JOIN [SITE_NT].[QLDT_NT].dbo.khoa k ON hp.ma_khoa = k.ma_khoa
+            GROUP BY hp.ma_khoa, k.ten_khoa;
             """
         else:
             return jsonify({"success": False, "message": "Loại truy vấn không hợp lệ"}), 400
