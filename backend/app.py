@@ -250,7 +250,9 @@ def api_dang_ky():
 @app.route("/api/dang-ky-demo-barrier", methods=["POST"])
 def api_dang_ky_demo_barrier():
     import threading
-    import requests
+    import urllib.request
+    import urllib.error
+    import json
     
     data = request.get_json()
     ma_sv_list = data.get("ma_sv_list", [])
@@ -268,14 +270,28 @@ def api_dang_ky_demo_barrier():
 
     def worker(sv):
         # 1. Các Thread khởi tạo xong sẽ bị chặn lại ở đây
-        # Phải chờ đến khi ĐỦ SỐ LƯỢNG Thread (bằng đúng len(ma_sv_list)) thì Barrier mới vỡ
         barrier.wait() 
         
-        # 2. Barrier vỡ -> Tất cả đồng loạt gọi API Đăng Ký (sai số tính bằng nano giây)
+        # 2. Barrier vỡ -> Tất cả đồng loạt gọi API Đăng Ký bằng urllib
         try:
-            res = requests.post(api_url, json={"ma_sv": sv, "ma_lop_hp": ma_lop_hp})
-            with lock:
-                results[sv] = res.json()
+            req = urllib.request.Request(api_url, method="POST")
+            req.add_header('Content-Type', 'application/json')
+            payload = json.dumps({"ma_sv": sv, "ma_lop_hp": ma_lop_hp}).encode('utf-8')
+            
+            with urllib.request.urlopen(req, data=payload) as response:
+                res_data = json.loads(response.read().decode())
+                with lock:
+                    results[sv] = res_data
+                    
+        except urllib.error.HTTPError as e:
+            # Bắt lỗi HTTP 400 để đọc câu thông báo JSON (VD: Hết chỗ, Trùng lịch...)
+            try:
+                error_data = json.loads(e.read().decode())
+                with lock:
+                    results[sv] = error_data
+            except:
+                with lock:
+                    results[sv] = {"success": False, "message": f"HTTP Error {e.code}"}
         except Exception as e:
             with lock:
                 results[sv] = {"success": False, "message": str(e)}
@@ -298,42 +314,53 @@ def api_dang_ky_demo():
     data = request.get_json()
     ma_sv = data.get("ma_sv", "").strip()
     ma_lop_hp = data.get("ma_lop_hp", "").strip()
+    
     if not ma_sv or not ma_lop_hp:
         return jsonify({"success": False, "message": "Thiếu thông tin."}), 400
+
     import pyodbc
     from config import Config
     cfg = Config()
 
+    # 1. Mặc định thử đâm lên Trung Tâm trước để đảm bảo Tính Nhất Quán (Consistency)
     sp_name = "sp_DangKyHocPhan_TrungTam" if SITE_CODE == "HD" else "sp_dang_ky_hoc_phan"
     conn_str = cfg.cg_connection_string if SITE_CODE == "CG" else (cfg.nt_connection_string if SITE_CODE == "NT" else cfg.hd_connection_string)
-    
+
     conn = None
     try:
+        # Quan trọng: Set autocommit=False để tự điều khiển cơ chế Khóa (Lock)
         conn = pyodbc.connect(conn_str, autocommit=False)
         cursor = conn.cursor()
+
+        # Bắn lệnh đăng ký vào SQL Server
         cursor.execute(f"EXEC {sp_name} @ma_sv=?, @ma_lop_hp=?", (ma_sv, ma_lop_hp))
         conn.commit()
+
         _log(ma_sv, "DANG_KY_DEMO", f"SV {ma_sv} cướp slot {ma_lop_hp} THÀNH CÔNG")
         return jsonify({"success": True, "message": "Đăng ký thành công"}), 200
+
     except pyodbc.Error as ex:
         if conn: conn.rollback()
         msg = str(ex.args[1]) if len(ex.args) > 1 else str(ex)
-        if SITE_CODE != "HD" and ("timeout" in msg.lower() or "linked server" in msg.lower() or "network" in msg.lower() or "rpc" in msg.lower() or "provider" in msg.lower()):
+
+        # 2. CƠ CHẾ DỰ PHÒNG (FAULT TOLERANCE): Nếu đứt cáp/timeout Linked Server lên Trung tâm
+        if SITE_CODE != "HD" and ("timeout" in msg.lower() or "linked server" in msg.lower() or "network" in msg.lower() or "provider" in msg.lower() or "rpc" in msg.lower()):
+            # Khởi động Kế hoạch B: Chạy Stored Procedure cục bộ của cơ sở đó
             sp_local = "sp_DangKyHocPhan_Local_CG" if SITE_CODE == "CG" else "sp_DangKyHocPhan_Local_NT"
             try:
                 cursor.execute(f"EXEC {sp_local} @ma_sv=?, @ma_lop_hp=?", (ma_sv, ma_lop_hp))
                 conn.commit()
                 _log(ma_sv, "DANG_KY_DEMO", f"SV {ma_sv} cướp slot {ma_lop_hp} THÀNH CÔNG (DỰ PHÒNG)")
-                return jsonify({"success": True, "message": "Đăng ký thành công"}), 200
+                return jsonify({"success": True, "message": "[KẾT NỐI DỰ PHÒNG] Đăng ký thành công"}), 200
             except pyodbc.Error as ex_local:
                 if conn: conn.rollback()
-                msg = str(ex_local.args[1]) if len(ex_local.args) > 1 else str(ex_local)
-                
+                msg = "[KẾT NỐI DỰ PHÒNG] " + (str(ex_local.args[1]) if len(ex_local.args) > 1 else str(ex_local))
+
+        # 3. Trả về thông báo lỗi (Hết slot, Trùng lịch,...)
         _log(ma_sv, "DANG_KY_DEMO", f"SV {ma_sv} cướp slot {ma_lop_hp} THẤT BẠI: {msg}")
         return jsonify({"success": False, "message": msg}), 400
     finally:
-        if conn:
-            conn.close()
+        if conn: conn.close()
 @app.route("/api/reset-demo", methods=["POST"])
 def api_reset_demo():
     data = request.get_json()
