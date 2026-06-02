@@ -429,36 +429,76 @@ def api_huy_dang_ky():
             conn.close()
 @app.route("/api/ket-qua-dang-ky/<ma_sv>", methods=["GET"])
 def get_ket_qua(ma_sv):
+    query_local = """
+        SELECT dk.ma_sv, sv.ho_ten, dk.ma_lop_hp, hp.ten_hp,
+               lhp.hoc_ky, lhp.nam_hoc, cs.ten_co_so,
+               dk.thoi_gian_dang_ky, dk.trang_thai
+        FROM dang_ky dk
+        JOIN sinh_vien sv ON dk.ma_sv = sv.ma_sv
+        JOIN lop_hoc_phan lhp ON dk.ma_lop_hp = lhp.ma_lop_hp
+        JOIN hoc_phan hp ON lhp.ma_hp = hp.ma_hp
+        JOIN co_so cs ON lhp.ma_co_so = cs.ma_co_so
+        WHERE dk.ma_sv = ? AND dk.trang_thai = N'THANH_CONG'
+        ORDER BY dk.thoi_gian_dang_ky DESC
+    """
+    query_remote = """
+        SELECT dk.ma_sv, sv.ho_ten, dk.ma_lop_hp, hp.ten_hp,
+               lhp.hoc_ky, lhp.nam_hoc, cs.ten_co_so,
+               dk.thoi_gian_dang_ky, dk.trang_thai
+        FROM [LINK_TRUNGTAM].[QLDT_HADONG].[dbo].dang_ky dk
+        JOIN [LINK_TRUNGTAM].[QLDT_HADONG].[dbo].sinh_vien sv ON dk.ma_sv = sv.ma_sv
+        JOIN [LINK_TRUNGTAM].[QLDT_HADONG].[dbo].lop_hoc_phan lhp ON dk.ma_lop_hp = lhp.ma_lop_hp
+        JOIN [LINK_TRUNGTAM].[QLDT_HADONG].[dbo].hoc_phan hp ON lhp.ma_hp = hp.ma_hp
+        JOIN [LINK_TRUNGTAM].[QLDT_HADONG].[dbo].co_so cs ON lhp.ma_co_so = cs.ma_co_so
+        WHERE dk.ma_sv = ? AND dk.trang_thai = N'THANH_CONG'
+        ORDER BY dk.thoi_gian_dang_ky DESC
+    """
     try:
-        return jsonify(execute_query("""
-            SELECT dk.ma_sv, sv.ho_ten, dk.ma_lop_hp, hp.ten_hp,
-                   lhp.hoc_ky, lhp.nam_hoc, cs.ten_co_so,
-                   dk.thoi_gian_dang_ky, dk.trang_thai
-            FROM dang_ky dk
-            JOIN sinh_vien sv ON dk.ma_sv = sv.ma_sv
-            JOIN lop_hoc_phan lhp ON dk.ma_lop_hp = lhp.ma_lop_hp
-            JOIN hoc_phan hp ON lhp.ma_hp = hp.ma_hp
-            JOIN co_so cs ON lhp.ma_co_so = cs.ma_co_so
-            WHERE dk.ma_sv = ? AND dk.trang_thai = N'THANH_CONG'
-            ORDER BY dk.thoi_gian_dang_ky DESC
-        """, (ma_sv,)))
+        if SITE_CODE == "HD":
+            return jsonify(execute_query(query_local, (ma_sv,)))
+        else:
+            try:
+                return jsonify(execute_query(query_remote, (ma_sv,)))
+            except Exception as e:
+                print("Lỗi Linked Server khi lấy kết quả ĐK, Fallback về Local:", e)
+                return jsonify(execute_query(query_local, (ma_sv,)))
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 @app.route("/api/thoi-khoa-bieu/<ma_sv>", methods=["GET"])
 def get_tkb(ma_sv):
+    query_local = """
+        SELECT DISTINCT lhp.ma_lop_hp, hp.ten_hp, lh.thu,
+               lh.tiet_bat_dau, lh.tiet_ket_thuc, ph.ten_phong, gv.ho_ten AS giang_vien
+        FROM dang_ky dk
+        JOIN lop_hoc_phan lhp ON dk.ma_lop_hp = lhp.ma_lop_hp
+        JOIN hoc_phan hp ON lhp.ma_hp = hp.ma_hp
+        JOIN lich_hoc lh ON lhp.ma_lop_hp = lh.ma_lop_hp
+        LEFT JOIN phong_hoc ph ON lh.ma_phong = ph.ma_phong
+        LEFT JOIN giang_vien gv ON lhp.ma_gv = gv.ma_gv
+        WHERE dk.ma_sv = ? AND dk.trang_thai = N'THANH_CONG'
+        ORDER BY lh.thu, lh.tiet_bat_dau
+    """
+    query_remote = """
+        SELECT DISTINCT lhp.ma_lop_hp, hp.ten_hp, lh.thu,
+               lh.tiet_bat_dau, lh.tiet_ket_thuc, ph.ten_phong, gv.ho_ten AS giang_vien
+        FROM [LINK_TRUNGTAM].[QLDT_HADONG].[dbo].dang_ky dk
+        JOIN [LINK_TRUNGTAM].[QLDT_HADONG].[dbo].lop_hoc_phan lhp ON dk.ma_lop_hp = lhp.ma_lop_hp
+        JOIN [LINK_TRUNGTAM].[QLDT_HADONG].[dbo].hoc_phan hp ON lhp.ma_hp = hp.ma_hp
+        JOIN [LINK_TRUNGTAM].[QLDT_HADONG].[dbo].lich_hoc lh ON lhp.ma_lop_hp = lh.ma_lop_hp
+        LEFT JOIN [LINK_TRUNGTAM].[QLDT_HADONG].[dbo].phong_hoc ph ON lh.ma_phong = ph.ma_phong
+        LEFT JOIN [LINK_TRUNGTAM].[QLDT_HADONG].[dbo].giang_vien gv ON lhp.ma_gv = gv.ma_gv
+        WHERE dk.ma_sv = ? AND dk.trang_thai = N'THANH_CONG'
+        ORDER BY lh.thu, lh.tiet_bat_dau
+    """
     try:
-        return jsonify(execute_query("""
-            SELECT DISTINCT lhp.ma_lop_hp, hp.ten_hp, lh.thu,
-                   lh.tiet_bat_dau, lh.tiet_ket_thuc, ph.ten_phong, gv.ho_ten AS giang_vien
-            FROM dang_ky dk
-            JOIN lop_hoc_phan lhp ON dk.ma_lop_hp = lhp.ma_lop_hp
-            JOIN hoc_phan hp ON lhp.ma_hp = hp.ma_hp
-            JOIN lich_hoc lh ON lhp.ma_lop_hp = lh.ma_lop_hp
-            LEFT JOIN phong_hoc ph ON lh.ma_phong = ph.ma_phong
-            LEFT JOIN giang_vien gv ON lhp.ma_gv = gv.ma_gv
-            WHERE dk.ma_sv = ? AND dk.trang_thai = N'THANH_CONG'
-            ORDER BY lh.thu, lh.tiet_bat_dau
-        """, (ma_sv,)))
+        if SITE_CODE == "HD":
+            return jsonify(execute_query(query_local, (ma_sv,)))
+        else:
+            try:
+                return jsonify(execute_query(query_remote, (ma_sv,)))
+            except Exception as e:
+                print("Lỗi Linked Server khi lấy TKB, Fallback về Local:", e)
+                return jsonify(execute_query(query_local, (ma_sv,)))
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 @app.route("/api/dang-ky-day", methods=["POST"])
@@ -487,21 +527,44 @@ def api_huy_day():
     return jsonify(result), 200 if result["success"] else 400
 @app.route("/api/lich-day/<ma_gv>", methods=["GET"])
 def get_lich_day(ma_gv):
+    query_local = """
+        SELECT lhp.ma_lop_hp, hp.ten_hp, gv.ho_ten AS giang_vien,
+               lh.thu, lh.tiet_bat_dau, lh.tiet_ket_thuc,
+               ph.ten_phong, lhp.hoc_ky, lhp.nam_hoc,
+               lhp.so_luong_da_dang_ky AS so_luong,
+               (lhp.si_so_toi_da - lhp.so_luong_da_dang_ky) AS con_trong
+        FROM lop_hoc_phan lhp
+        JOIN hoc_phan hp ON lhp.ma_hp = hp.ma_hp
+        JOIN giang_vien gv ON lhp.ma_gv = gv.ma_gv
+        LEFT JOIN lich_hoc lh ON lhp.ma_lop_hp = lh.ma_lop_hp
+        LEFT JOIN phong_hoc ph ON lh.ma_phong = ph.ma_phong
+        WHERE lhp.ma_gv = ?
+        ORDER BY lh.thu, lh.tiet_bat_dau
+    """
+    query_remote = """
+        SELECT lhp.ma_lop_hp, hp.ten_hp, gv.ho_ten AS giang_vien,
+               lh.thu, lh.tiet_bat_dau, lh.tiet_ket_thuc,
+               ph.ten_phong, lhp.hoc_ky, lhp.nam_hoc,
+               lhp.so_luong_da_dang_ky AS so_luong,
+               (lhp.si_so_toi_da - lhp.so_luong_da_dang_ky) AS con_trong
+        FROM [LINK_TRUNGTAM].[QLDT_HADONG].[dbo].lop_hoc_phan lhp
+        JOIN [LINK_TRUNGTAM].[QLDT_HADONG].[dbo].hoc_phan hp ON lhp.ma_hp = hp.ma_hp
+        JOIN [LINK_TRUNGTAM].[QLDT_HADONG].[dbo].giang_vien gv ON lhp.ma_gv = gv.ma_gv
+        LEFT JOIN [LINK_TRUNGTAM].[QLDT_HADONG].[dbo].lich_hoc lh ON lhp.ma_lop_hp = lh.ma_lop_hp
+        LEFT JOIN [LINK_TRUNGTAM].[QLDT_HADONG].[dbo].phong_hoc ph ON lh.ma_phong = ph.ma_phong
+        WHERE lhp.ma_gv = ?
+        ORDER BY lh.thu, lh.tiet_bat_dau
+    """
     try:
-        return jsonify(execute_query("""
-            SELECT lhp.ma_lop_hp, hp.ten_hp, gv.ho_ten AS giang_vien,
-                   lh.thu, lh.tiet_bat_dau, lh.tiet_ket_thuc,
-                   ph.ten_phong, lhp.hoc_ky, lhp.nam_hoc,
-                   lhp.so_luong_da_dang_ky AS so_luong,
-                   (lhp.si_so_toi_da - lhp.so_luong_da_dang_ky) AS con_trong
-            FROM lop_hoc_phan lhp
-            JOIN hoc_phan hp ON lhp.ma_hp = hp.ma_hp
-            JOIN giang_vien gv ON lhp.ma_gv = gv.ma_gv
-            LEFT JOIN lich_hoc lh ON lhp.ma_lop_hp = lh.ma_lop_hp
-            LEFT JOIN phong_hoc ph ON lh.ma_phong = ph.ma_phong
-            WHERE lhp.ma_gv = ?
-            ORDER BY lh.thu, lh.tiet_bat_dau
-        """, (ma_gv,)))
+        if SITE_CODE == "HD":
+            return jsonify(execute_query(query_local, (ma_gv,)))
+        else:
+            try:
+                # Thử chọc lên Trung tâm để lấy toàn bộ lịch dạy ở cả Cầu Giấy và Ngọc Trục
+                return jsonify(execute_query(query_remote, (ma_gv,)))
+            except Exception as e:
+                print("Lỗi Linked Server khi lấy lịch dạy, Fallback về Local:", e)
+                return jsonify(execute_query(query_local, (ma_gv,)))
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 @app.route("/api/thong-ke/toan-truong", methods=["GET"])
