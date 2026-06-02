@@ -126,11 +126,11 @@ def get_lop_hoc_phan():
                    lhp.si_so_toi_da, lhp.so_luong_da_dang_ky,
                    (lhp.si_so_toi_da - lhp.so_luong_da_dang_ky) AS con_trong,
                    hp.ma_khoa
-            FROM [SITE_HD].[QLDT_HADONG].[dbo].lop_hoc_phan lhp
-            LEFT JOIN [SITE_HD].[QLDT_HADONG].[dbo].hoc_phan hp ON lhp.ma_hp = hp.ma_hp
-            LEFT JOIN [SITE_HD].[QLDT_HADONG].[dbo].giang_vien gv ON lhp.ma_gv = gv.ma_gv
-            LEFT JOIN [SITE_HD].[QLDT_HADONG].[dbo].phong_hoc ph ON lhp.ma_phong = ph.ma_phong
-            LEFT JOIN [SITE_HD].[QLDT_HADONG].[dbo].co_so cs ON lhp.ma_co_so = cs.ma_co_so
+            FROM [LINK_TRUNGTAM].[QLDT_HADONG].[dbo].lop_hoc_phan lhp
+            LEFT JOIN [LINK_TRUNGTAM].[QLDT_HADONG].[dbo].hoc_phan hp ON lhp.ma_hp = hp.ma_hp
+            LEFT JOIN [LINK_TRUNGTAM].[QLDT_HADONG].[dbo].giang_vien gv ON lhp.ma_gv = gv.ma_gv
+            LEFT JOIN [LINK_TRUNGTAM].[QLDT_HADONG].[dbo].phong_hoc ph ON lhp.ma_phong = ph.ma_phong
+            LEFT JOIN [LINK_TRUNGTAM].[QLDT_HADONG].[dbo].co_so cs ON lhp.ma_co_so = cs.ma_co_so
         """
         conditions = []
         params = []
@@ -151,8 +151,8 @@ def get_lop_hoc_phan():
                 lich = execute_query("""
                     SELECT lh.ma_lop_hp, lh.thu, lh.tiet_bat_dau, lh.tiet_ket_thuc,
                            lh.ma_phong, ph.ten_phong
-                    FROM [SITE_HD].[QLDT_HADONG].[dbo].lich_hoc lh
-                    LEFT JOIN [SITE_HD].[QLDT_HADONG].[dbo].phong_hoc ph ON lh.ma_phong = ph.ma_phong
+                    FROM [LINK_TRUNGTAM].[QLDT_HADONG].[dbo].lich_hoc lh
+                    LEFT JOIN [LINK_TRUNGTAM].[QLDT_HADONG].[dbo].phong_hoc ph ON lh.ma_phong = ph.ma_phong
                 """)
             except Exception as e:
                 print("Lỗi Linked Server, Fallback về Local:", e)
@@ -229,13 +229,18 @@ def api_dang_ky():
     if not ma_sv or not ma_lop_hp:
         return jsonify({"success": False, "message": "Thiếu mã SV hoặc mã LHP."}), 400
     if SITE_CODE == "HD":
-        sp_name = "sp_DangKyHocPhan_DieuPhoi"
-    elif SITE_CODE == "CG":
-        sp_name = "sp_DangKyHocPhan_Local_CG"
+        result = execute_procedure("sp_DangKyHocPhan_TrungTam", (ma_sv, ma_lop_hp))
     else:
-        sp_name = "sp_DangKyHocPhan_Local_NT"
-
-    result = execute_procedure(sp_name, (ma_sv, ma_lop_hp))
+        # Cố gắng đăng ký qua Trung tâm trước (Nhất quán)
+        result = execute_procedure("sp_dang_ky_hoc_phan", (ma_sv, ma_lop_hp))
+        
+        # Nếu báo lỗi đứt cáp, timeout hoặc Linked Server chết
+        err_msg = result.get("message", "").lower()
+        if not result["success"] and ("timeout" in err_msg or "linked server" in err_msg or "provider" in err_msg or "network" in err_msg or "rpc" in err_msg):
+            # Fallback: Kích hoạt thủ tục Đăng ký cục bộ (Khả dụng)
+            sp_local = "sp_DangKyHocPhan_Local_CG" if SITE_CODE == "CG" else "sp_DangKyHocPhan_Local_NT"
+            result = execute_procedure(sp_local, (ma_sv, ma_lop_hp))
+            result["message"] = "[KẾT NỐI DỰ PHÒNG] " + result.get("message", "")
     if result["success"]:
         _log(ma_sv, "DANG_KY", f"SV {ma_sv} đăng ký {ma_lop_hp} THÀNH CÔNG")
     else:
@@ -249,12 +254,15 @@ def api_dang_ky_demo():
     if not ma_sv or not ma_lop_hp:
         return jsonify({"success": False, "message": "Thiếu thông tin."}), 400
     if SITE_CODE == "HD":
-        sp_name = "sp_DangKyHocPhan_DieuPhoi"
-    elif SITE_CODE == "CG":
-        sp_name = "sp_DangKyHocPhan_Local_CG"
+        result = execute_procedure("sp_DangKyHocPhan_TrungTam", (ma_sv, ma_lop_hp))
     else:
-        sp_name = "sp_DangKyHocPhan_Local_NT"
-        
+        result = execute_procedure("sp_dang_ky_hoc_phan", (ma_sv, ma_lop_hp))
+        err_msg = result.get("message", "").lower()
+        if not result["success"] and ("timeout" in err_msg or "linked server" in err_msg or "provider" in err_msg or "network" in err_msg or "rpc" in err_msg):
+            sp_local = "sp_DangKyHocPhan_Local_CG" if SITE_CODE == "CG" else "sp_DangKyHocPhan_Local_NT"
+            result = execute_procedure(sp_local, (ma_sv, ma_lop_hp))
+            result["message"] = "[KẾT NỐI DỰ PHÒNG] " + result.get("message", "")
+
     import pyodbc
     from config import Config
     cfg = Config()
@@ -638,7 +646,7 @@ def truy_van_phan_tan_nang_cao(loai):
             """
         else:
             return jsonify({"success": False, "message": "Loại truy vấn không hợp lệ"}), 400
-        query = query.replace("[SITE_HD].", "")
+        query = query.replace("[LINK_TRUNGTAM].", "")
         query = query.replace("[SITE_CG]", "[SITE_CG]")
         query = query.replace("[SITE_NT]", "[SITE_NT]")
         cursor.execute(query)
