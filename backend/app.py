@@ -307,6 +307,8 @@ def api_dang_ky_demo_barrier():
                 with lock:
                     results[sv] = {"success": False, "message": msg}
         finally:
+            if cursor:
+                cursor.close()
             if conn:
                 conn.close()
 
@@ -347,8 +349,6 @@ def api_dang_ky_demo():
     except pyodbc.Error as ex:
         if conn: conn.rollback()
         msg = str(ex.args[1]) if len(ex.args) > 1 else str(ex)
-        
-        # Nếu đứt cáp/timeout Linked Server -> KÍCH HOẠT FALLBACK
         if SITE_CODE != "HD" and ("timeout" in msg.lower() or "linked server" in msg.lower() or "network" in msg.lower() or "rpc" in msg.lower() or "provider" in msg.lower()):
             sp_local = "sp_DangKyHocPhan_Local_CG" if SITE_CODE == "CG" else "sp_DangKyHocPhan_Local_NT"
             try:
@@ -420,7 +420,24 @@ def api_huy_dang_ky():
         _log(ma_sv, "HUY_DANG_KY", f"SV {ma_sv} hủy {ma_lop_hp}")
         return jsonify({"success": True, "message": msg})
     except pyodbc.Error as ex:
+        if 'conn' in locals() and conn:
+            conn.rollback()
         msg = str(ex.args[1]) if len(ex.args) > 1 else str(ex)
+        
+        # Xử lý fallback cục bộ nếu đứt cáp hoặc timeout
+        if SITE_CODE != "HD" and ("timeout" in msg.lower() or "linked server" in msg.lower() or "network" in msg.lower() or "rpc" in msg.lower() or "provider" in msg.lower()):
+            sp_local = "sp_HuyDangKyHocPhan_Local_CG" if SITE_CODE == "CG" else "sp_HuyDangKyHocPhan_Local_NT"
+            try:
+                cursor.execute(f"EXEC {sp_local} @ma_sv=?, @ma_lop_hp=?", (ma_sv, ma_lop_hp))
+                conn.commit()
+                _log(ma_sv, "HUY_DANG_KY", f"SV {ma_sv} hủy {ma_lop_hp} (DỰ PHÒNG)")
+                return jsonify({"success": True, "message": "[KẾT NỐI DỰ PHÒNG] Hủy thành công."}), 200
+            except pyodbc.Error as ex_local:
+                if 'conn' in locals() and conn:
+                    conn.rollback()
+                msg_local = "[KẾT NỐI DỰ PHÒNG] " + (str(ex_local.args[1]) if len(ex_local.args) > 1 else str(ex_local))
+                return jsonify({"success": False, "message": msg_local}), 400
+                
         return jsonify({"success": False, "message": msg}), 400
     finally:
         if 'cursor' in locals() and cursor:
