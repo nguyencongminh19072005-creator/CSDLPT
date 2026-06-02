@@ -373,15 +373,24 @@ def api_reset_demo():
     try:
         conn = get_connection()
         cursor = conn.cursor()
-        cursor.execute("""
-            DELETE FROM dbo.dang_ky 
-            WHERE ma_lop_hp = ? AND ma_sv IN (?, ?, ?)
-        """, (ma_lop_hp, sv1, sv2, sv3))
-        cursor.execute("""
-            UPDATE dbo.lop_hoc_phan 
-            SET si_so_toi_da = 2, so_luong_da_dang_ky = 1 
-            WHERE ma_lop_hp = ?
-        """, (ma_lop_hp,))
+        if SITE_CODE == "HD":
+            cursor.execute("DELETE FROM dbo.dang_ky WHERE ma_lop_hp = ? AND ma_sv IN (?, ?, ?)", (ma_lop_hp, sv1, sv2, sv3))
+            cursor.execute("UPDATE dbo.lop_hoc_phan SET si_so_toi_da = 2, so_luong_da_dang_ky = 1 WHERE ma_lop_hp = ?", (ma_lop_hp,))
+        else:
+            # Kiểm tra xem lớp học phần này có nằm ở CSDL Cục bộ hiện tại không
+            cursor.execute("SELECT 1 FROM dbo.lop_hoc_phan WHERE ma_lop_hp = ?", (ma_lop_hp,))
+            if cursor.fetchone():
+                # Lớp nằm ở Cục bộ -> Xóa trực tiếp
+                cursor.execute("DELETE FROM dbo.dang_ky WHERE ma_lop_hp = ? AND ma_sv IN (?, ?, ?)", (ma_lop_hp, sv1, sv2, sv3))
+                cursor.execute("UPDATE dbo.lop_hoc_phan SET si_so_toi_da = 2, so_luong_da_dang_ky = 1 WHERE ma_lop_hp = ?", (ma_lop_hp,))
+            else:
+                # Lớp KHÔNG NẰM Ở CỤC BỘ -> Dùng Linked Server để xóa chéo sang cơ sở kia
+                site_db = "QLDT_CauGiay" if SITE_CODE == "NT" else "QLDT_NT"
+                linked_server = "SITE_CG" if SITE_CODE == "NT" else "SITE_NT"
+                
+                cursor.execute(f"DELETE FROM [{linked_server}].[{site_db}].dbo.dang_ky WHERE ma_lop_hp = ? AND ma_sv IN (?, ?, ?)", (ma_lop_hp, sv1, sv2, sv3))
+                cursor.execute(f"UPDATE [{linked_server}].[{site_db}].dbo.lop_hoc_phan SET si_so_toi_da = 2, so_luong_da_dang_ky = 1 WHERE ma_lop_hp = ?", (ma_lop_hp,))
+                
         conn.commit()
         return jsonify({"success": True, "message": "Đã reset lớp thành công!"}), 200
     except Exception as e:
