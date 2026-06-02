@@ -250,8 +250,9 @@ def api_dang_ky():
 @app.route("/api/dang-ky-demo-barrier", methods=["POST"])
 def api_dang_ky_demo_barrier():
     import threading
-    import pyodbc
-    from config import Config
+    import urllib.request
+    import urllib.error
+    import json
     
     data = request.get_json()
     ma_sv_list = data.get("ma_sv_list", [])
@@ -260,40 +261,40 @@ def api_dang_ky_demo_barrier():
     if not ma_sv_list or not ma_lop_hp:
         return jsonify({"success": False, "message": "Thiếu thông tin."}), 400
 
-    cfg = Config()
-    # Ép buộc chỉ kết nối thẳng lên Trung tâm (Hà Đông)
-    conn_str = cfg.hd_connection_string
-    sp_name = "sp_DangKyHocPhan_TrungTam"
-
     results = {}
     barrier = threading.Barrier(len(ma_sv_list))
     lock = threading.Lock()
+    
+    # Lấy chính xác địa chỉ URL hiện tại của Server (VD: http://127.0.0.1:5000/api/dang-ky)
+    api_url = request.host_url + "api/dang-ky"
 
     def worker(sv):
-        conn = None
-        cursor = None
+        # 1. Các Thread khởi tạo xong sẽ bị chặn lại ở đây
+        barrier.wait() 
+        
+        # 2. Barrier vỡ -> Tất cả đồng loạt gọi API Đăng Ký bằng urllib
         try:
-            # Mở kết nối riêng cho từng Thread lên Trung Tâm
-            conn = pyodbc.connect(conn_str, autocommit=False)
-            cursor = conn.cursor()
+            req = urllib.request.Request(api_url, method="POST")
+            req.add_header('Content-Type', 'application/json')
+            payload = json.dumps({"ma_sv": sv, "ma_lop_hp": ma_lop_hp}).encode('utf-8')
             
-            # Đợi tất cả kết nối xong mới phá rào
-            barrier.wait() 
-            
-            # Cùng lúc đâm lệnh vào CSDL Hà Đông
-            cursor.execute(f"EXEC {sp_name} @ma_sv=?, @ma_lop_hp=?", (sv, ma_lop_hp))
-            conn.commit()
-            
-            with lock:
-                results[sv] = {"success": True, "message": "Đăng ký thành công"}
+            with urllib.request.urlopen(req, data=payload) as response:
+                res_data = json.loads(response.read().decode())
+                with lock:
+                    results[sv] = res_data
+                    
+        except urllib.error.HTTPError as e:
+            # Bắt lỗi HTTP 400 để đọc câu thông báo JSON (VD: Hết chỗ, Trùng lịch...)
+            try:
+                error_data = json.loads(e.read().decode())
+                with lock:
+                    results[sv] = error_data
+            except:
+                with lock:
+                    results[sv] = {"success": False, "message": f"HTTP Error {e.code}"}
         except Exception as e:
-            if conn: conn.rollback()
-            msg = str(e.args[1]) if len(e.args) > 1 else str(e)
             with lock:
-                results[sv] = {"success": False, "message": msg}
-        finally:
-            if cursor: cursor.close()
-            if conn: conn.close()
+                results[sv] = {"success": False, "message": str(e)}
 
     # Tạo và khởi động các luồng
     threads = []
@@ -345,33 +346,33 @@ def api_dang_ky_demo():
         # 2. CƠ CHẾ DỰ PHÒNG (FAULT TOLERANCE): Nếu đứt cáp/timeout Linked Server lên Trung tâm
         if SITE_CODE != "HD" and ("timeout" in msg.lower() or "linked server" in msg.lower() or "network" in msg.lower() or "provider" in msg.lower() or "rpc" in msg.lower()):
             
-            # Tự động xác định SP cục bộ dựa theo Cơ sở của Sinh viên (thay vì cố định theo SITE_CODE)
+            # Tự động nhận diện Sinh viên thuộc cơ sở nào để gọi đúng SP của cơ sở đó
             sp_local = "sp_DangKyHocPhan_Local_NT" # Mặc định
             try:
-                # Tìm xem sinh viên này thuộc cơ sở nào
+                # Soi xem sinh viên này có mã cơ sở là gì
                 cursor.execute("SELECT ma_co_so FROM sinh_vien WHERE ma_sv = ?", (ma_sv,))
                 sv_row = cursor.fetchone()
                 if not sv_row:
-                    # Nếu không có ở DB hiện tại, thử tìm chéo sang DB kia
+                    # Nếu sinh viên không nằm ở Server hiện tại, đâm chéo qua Server kia để tìm
                     linked_srv = "SITE_CG" if SITE_CODE == "NT" else "SITE_NT"
                     linked_db = "QLDT_CauGiay" if SITE_CODE == "NT" else "QLDT_NT"
                     cursor.execute(f"SELECT ma_co_so FROM [{linked_srv}].[{linked_db}].dbo.sinh_vien WHERE ma_sv = ?", (ma_sv,))
                     sv_row = cursor.fetchone()
                 
-                # Nếu phát hiện là sinh viên Cầu Giấy thì gọi SP của Cầu Giấy
+                # Quyết định bẻ lái
                 if sv_row and sv_row[0] == 'CS_CG':
-                    sp_local = "sp_DangKyHocPhan_Local_CG"
+                    sp_local = "sp_DangKyHocPhan_Local_CG" # Trả về đúng Cầu Giấy
                 elif sv_row and sv_row[0] == 'CS_NT':
-                    sp_local = "sp_DangKyHocPhan_Local_NT"
+                    sp_local = "sp_DangKyHocPhan_Local_NT" # Trả về Ngọc Trục
             except Exception:
-                # Nếu có lỗi khi tìm kiếm, Fallback về mặc định ban đầu
+                # Nếu không thể nhận diện được thì dùng tạm SITE_CODE
                 sp_local = "sp_DangKyHocPhan_Local_CG" if SITE_CODE == "CG" else "sp_DangKyHocPhan_Local_NT"
 
             try:
                 cursor.execute(f"EXEC {sp_local} @ma_sv=?, @ma_lop_hp=?", (ma_sv, ma_lop_hp))
                 conn.commit()
                 _log(ma_sv, "DANG_KY_DEMO", f"SV {ma_sv} cướp slot {ma_lop_hp} THÀNH CÔNG (DỰ PHÒNG {sp_local})")
-                return jsonify({"success": True, "message": "[KẾT NỐI DỰ PHÒNG] Đăng ký thành công"}), 200
+                return jsonify({"success": True, "message": f"[KẾT NỐI DỰ PHÒNG] Đăng ký thành công qua {sp_local}"}), 200
             except pyodbc.Error as ex_local:
                 if conn: conn.rollback()
                 msg = "[KẾT NỐI DỰ PHÒNG] " + (str(ex_local.args[1]) if len(ex_local.args) > 1 else str(ex_local))
