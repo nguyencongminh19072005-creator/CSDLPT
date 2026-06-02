@@ -250,8 +250,7 @@ def api_dang_ky():
 @app.route("/api/dang-ky-demo-barrier", methods=["POST"])
 def api_dang_ky_demo_barrier():
     import threading
-    import pyodbc
-    from config import Config
+    import requests
     
     data = request.get_json()
     ma_sv_list = data.get("ma_sv_list", [])
@@ -260,58 +259,28 @@ def api_dang_ky_demo_barrier():
     if not ma_sv_list or not ma_lop_hp:
         return jsonify({"success": False, "message": "Thiếu thông tin."}), 400
 
-    cfg = Config()
-    sp_name = "sp_DangKyHocPhan_TrungTam" if SITE_CODE == "HD" else "sp_dang_ky_hoc_phan"
-    conn_str = cfg.cg_connection_string if SITE_CODE == "CG" else (cfg.nt_connection_string if SITE_CODE == "NT" else cfg.hd_connection_string)
-    
     results = {}
     barrier = threading.Barrier(len(ma_sv_list))
     lock = threading.Lock()
     
-    def worker(sv):
-        # Mở kết nối riêng cho từng Thread trước khi chờ ở Barrier
-        # Điều này loại trừ hoàn toàn độ trễ mở kết nối mạng
-        conn = None
-        try:
-            conn = pyodbc.connect(conn_str, autocommit=False)
-            cursor = conn.cursor()
-            
-            # Tất cả các Thread sẽ dừng ở đây và đợi nhau.
-            # Khi đủ số lượng, Barrier sẽ vỡ và tất cả cùng lao vào dòng lệnh execute ĐỒNG THỜI (độ lệch nano giây)!
-            barrier.wait() 
-            
-            cursor.execute(f"EXEC {sp_name} @ma_sv=?, @ma_lop_hp=?", (sv, ma_lop_hp))
-            conn.commit()
-            
-            with lock:
-                results[sv] = {"success": True, "message": "Đăng ký thành công"}
-                
-        except Exception as ex:
-            if conn: conn.rollback()
-            msg = str(ex.args[1]) if len(ex.args) > 1 else str(ex)
-            
-            # Xử lý fallback cục bộ nếu đứt cáp
-            if SITE_CODE != "HD" and ("timeout" in msg.lower() or "linked server" in msg.lower() or "network" in msg.lower() or "rpc" in msg.lower() or "provider" in msg.lower()):
-                sp_local = "sp_DangKyHocPhan_Local_CG" if SITE_CODE == "CG" else "sp_DangKyHocPhan_Local_NT"
-                try:
-                    cursor.execute(f"EXEC {sp_local} @ma_sv=?, @ma_lop_hp=?", (sv, ma_lop_hp))
-                    conn.commit()
-                    with lock:
-                        results[sv] = {"success": True, "message": "Đăng ký thành công"}
-                except pyodbc.Error as ex_local:
-                    if conn: conn.rollback()
-                    msg_local = str(ex_local.args[1]) if len(ex_local.args) > 1 else str(ex_local)
-                    with lock:
-                        results[sv] = {"success": False, "message": msg_local}
-            else:
-                with lock:
-                    results[sv] = {"success": False, "message": msg}
-        finally:
-            if cursor:
-                cursor.close()
-            if conn:
-                conn.close()
+    # Lấy chính xác địa chỉ URL hiện tại của Server (VD: http://127.0.0.1:5000/api/dang-ky)
+    api_url = request.host_url + "api/dang-ky"
 
+    def worker(sv):
+        # 1. Các Thread khởi tạo xong sẽ bị chặn lại ở đây
+        # Phải chờ đến khi ĐỦ SỐ LƯỢNG Thread (bằng đúng len(ma_sv_list)) thì Barrier mới vỡ
+        barrier.wait() 
+        
+        # 2. Barrier vỡ -> Tất cả đồng loạt gọi API Đăng Ký (sai số tính bằng nano giây)
+        try:
+            res = requests.post(api_url, json={"ma_sv": sv, "ma_lop_hp": ma_lop_hp})
+            with lock:
+                results[sv] = res.json()
+        except Exception as e:
+            with lock:
+                results[sv] = {"success": False, "message": str(e)}
+
+    # Tạo và khởi động các luồng
     threads = []
     for sv in ma_sv_list:
         t = threading.Thread(target=worker, args=(sv,))
