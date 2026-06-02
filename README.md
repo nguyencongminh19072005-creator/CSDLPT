@@ -7,9 +7,8 @@
 - **Backend:** Python (Flask Web Framework).
 - **Database:** Microsoft SQL Server.
 - **Mô hình Phân tán:** Sử dụng **Transactional Replication** (Nhân bản giao dịch) kết hợp **Linked Server**. Hệ thống áp dụng nguyên lý **Hub-and-Spoke**: 
-  - Mọi thao tác **Ghi (Write)** - ví dụ: Đăng ký học phần - được định tuyến tập trung về Server Trung tâm (Hà Đông) để khóa tranh chấp.
-  - Mọi thao tác **Đọc (Read)** - ví dụ: Xem thời khóa biểu, thống kê - được truy vấn tại máy chủ cục bộ (Local Site) để tối ưu băng thông.
-
+  - Mọi thao tác **Ghi (Write)** 
+  - Mọi thao tác **Đọc (Read)** 
 ## 🌟 Các tính năng nổi bật
 1. **Quản lý Đăng ký Học phần Phân tán:** Sinh viên ở bất kỳ cơ sở nào cũng có thể đăng nhập và đăng ký lớp học.
 2. **Kiểm soát Tranh chấp Đồng thời (Pessimistic Locking):** Đảm bảo an toàn dữ liệu 100% khi hàng nghìn sinh viên đăng ký cùng một phần nghìn giây. Không bao giờ xảy ra tình trạng "lố" sĩ số lớp. Tích hợp sẵn bộ test **Mô phỏng Đăng ký Đồng thời** (sử dụng Python `threading.Barrier`) ở giao diện Admin.
