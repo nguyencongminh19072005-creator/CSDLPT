@@ -18,8 +18,8 @@ def dang_ky_thi_nghiem(ma_sv, ma_lop_hp):
         conn.close()
 if __name__ == "__main__":
 
-    lop_hot = "LHP030"                                 
-    sinh_vien_list = ["SV0001", "SV0002", "SV0003"]
+    lop_hot = "LHP202508"                                 
+    sinh_vien_list = ["SV0001", "SV0016", "SV0032"]
     threads = []
     for sv in sinh_vien_list:
         t = threading.Thread(target=dang_ky_thi_nghiem, args=(sv, lop_hot))

@@ -1,4 +1,4 @@
-﻿// ============================================================
+// ============================================================
 //  app.js — SPA router cho CSDLPTBTL
 // ============================================================
 const API = '/api';
@@ -238,26 +238,37 @@ async function renderTrangChu(el, user) {
             </div>`;
     }
 
-    el.innerHTML = `
-        <div class="page-header"><h2>Trang chủ</h2><p>Xin chào, ${user.ten}</p></div>
-        <div class="stats-grid">
-            <div class="stat-card"><div class="num">${tk.tong_sv || 0}</div><div class="label">Sinh viên</div></div>
-            <div class="stat-card"><div class="num">${tk.tong_gv || 0}</div><div class="label">Giảng viên</div></div>
-            <div class="stat-card"><div class="num">${tk.tong_lop || 0}</div><div class="label">Lớp HP</div></div>
-            <div class="stat-card"><div class="num">${tk.tong_dk || 0}</div><div class="label">Đăng ký</div></div>
-            <div class="stat-card"><div class="num">${tk.tong_hp || 0}</div><div class="label">Học phần</div></div>
-        </div>
-        ${coSo && coSo.length ? `<div class="card"><h3>Thống kê theo cơ sở</h3>
-            <div class="table-wrap"><table>
-                <thead><tr><th>Cơ sở</th><th>SV</th><th>GV</th><th>Lớp HP</th><th>Đăng ký</th></tr></thead>
-                <tbody>${coSo.map(r => `<tr>
-                    <td><strong>${r.ten_co_so}</strong></td>
-                    <td>${r.tong_sv}</td><td>${r.tong_gv}</td>
-                    <td>${r.tong_lop}</td><td>${r.tong_dk}</td>
-                </tr>`).join('')}</tbody>
-            </table></div></div>` : ''}
-        ${svInfo}
-    `;
+    if (user.role === 'admin') {
+        el.innerHTML = `
+            <div class="page-header"><h2>Trang chủ</h2><p>Xin chào, ${user.ten}</p></div>
+            <div class="card" style="text-align: center; padding: 50px 20px;">
+                <h1 style="color: #1976d2; font-size: 2.5rem; margin-bottom: 20px;">👋 Xin chào Quản trị viên!</h1>
+                <p style="font-size: 1.2rem; color: #546e7a;">Chào mừng bạn đến với Hệ thống Quản lý Đào tạo Phân tán.</p>
+                <p style="font-size: 1.1rem; color: #78909c; margin-top: 10px;">Vui lòng chọn các chức năng bên menu trái để thao tác.</p>
+            </div>
+        `;
+    } else {
+        el.innerHTML = `
+            <div class="page-header"><h2>Trang chủ</h2><p>Xin chào, ${user.ten}</p></div>
+            <div class="stats-grid">
+                <div class="stat-card"><div class="num">${tk.tong_sv || 0}</div><div class="label">Sinh viên</div></div>
+                <div class="stat-card"><div class="num">${tk.tong_gv || 0}</div><div class="label">Giảng viên</div></div>
+                <div class="stat-card"><div class="num">${tk.tong_lop || 0}</div><div class="label">Lớp HP</div></div>
+                <div class="stat-card"><div class="num">${tk.tong_dk || 0}</div><div class="label">Đăng ký</div></div>
+                <div class="stat-card"><div class="num">${tk.tong_hp || 0}</div><div class="label">Học phần</div></div>
+            </div>
+            ${coSo && coSo.length ? `<div class="card"><h3>Thống kê theo cơ sở</h3>
+                <div class="table-wrap"><table>
+                    <thead><tr><th>Cơ sở</th><th>SV</th><th>GV</th><th>Lớp HP</th><th>Đăng ký</th></tr></thead>
+                    <tbody>${coSo.map(r => `<tr>
+                        <td><strong>${r.ten_co_so}</strong></td>
+                        <td>${r.tong_sv}</td><td>${r.tong_gv}</td>
+                        <td>${r.tong_lop}</td><td>${r.tong_dk}</td>
+                    </tr>`).join('')}</tbody>
+                </table></div></div>` : ''}
+            ${svInfo}
+        `;
+    }
 }
 
 // ============================================================
@@ -1287,14 +1298,11 @@ async function renderDemoDongThoi(el, user) {
 
     el.innerHTML = `
         <div class="card fade-in">
-            <h2 style="color: #2c3e50; font-weight: 700;">CÔNG CỤ KIỂM THỬ XỬ LÝ ĐỒNG THỜI (CONCURRENCY CONTROL)</h2>
-            <p>Hệ thống sử dụng kỹ thuật <b>Pessimistic Locking (UPDLOCK, HOLDLOCK)</b> ở mức cơ sở dữ liệu để ngăn chặn Race Condition. Công cụ này tạo ra các luồng gửi yêu cầu đồng thời ở cùng một thời điểm (mili-giây) để kiểm chứng cơ chế khóa.</p>
-            <hr>
             
             <div style="display: flex; gap: 20px; flex-wrap: wrap;">
                 <div class="form-group" style="flex: 1; min-width: 250px;">
                     <label><b>Mã Lớp học phần:</b></label>
-                    <input type="text" id="demo-lop" class="form-control" value="LHP030">
+                    <input type="text" id="demo-lop" class="form-control" value="LHP202508">
                 </div>
             </div>
 
@@ -1305,11 +1313,11 @@ async function renderDemoDongThoi(el, user) {
                 </div>
                 <div class="form-group" style="flex: 1; min-width: 150px;">
                     <label>Sinh viên 2:</label>
-                    <input type="text" id="demo-sv2" class="form-control" value="SV0002">
+                    <input type="text" id="demo-sv2" class="form-control" value="SV0016">
                 </div>
                 <div class="form-group" style="flex: 1; min-width: 150px;">
                     <label>Sinh viên 3:</label>
-                    <input type="text" id="demo-sv3" class="form-control" value="SV0003">
+                    <input type="text" id="demo-sv3" class="form-control" value="SV0032">
                 </div>
             </div>
 
@@ -1362,33 +1370,36 @@ async function renderDemoDongThoi(el, user) {
             html += '</tbody></table>';
             resultDiv.innerHTML = html;
 
-            // Bắn 3 Yêu cầu CÙNG MỘT LÚC nhưng xử lý kết quả ĐỘC LẬP (Ai xong trước hiện trước)
-            const promises = sinhViens.map(sv => {
-                return api(`${API}/dang-ky-demo`, { method: 'POST', body: JSON.stringify({ ma_sv: sv, ma_lop_hp: maLop }) })
-                    .then(res => {
-                        const tr = document.getElementById(`row-${sv}`);
-                        if (res.success) {
-                            tr.style.background = '#e8f5e9';
-                            tr.innerHTML = `<td><b>${sv}</b></td>
-                                            <td><span class="status-badge" style="background:#4caf50;color:white">THÀNH CÔNG</span></td>
-                                            <td style="color:#2e7d32; font-weight:bold;">${res.message || 'Đăng ký thành công.'}</td>`;
-                        } else {
-                            tr.style.background = '#ffebee';
-                            tr.innerHTML = `<td><b>${sv}</b></td>
-                                            <td><span class="status-badge" style="background:#f44336;color:white">THẤT BẠI</span></td>
-                                            <td style="color:#c62828;">${res.message}</td>`;
-                        }
-                    })
-                    .catch(err => {
-                        const tr = document.getElementById(`row-${sv}`);
+            // Gọi API mô phỏng đồng thời tuyệt đối bằng Python Threading Barrier
+            const data = await api(`${API}/dang-ky-demo-barrier`, { 
+                method: 'POST', 
+                body: JSON.stringify({ ma_sv_list: sinhViens, ma_lop_hp: maLop }) 
+            });
+
+            if (data.success && data.results) {
+                sinhViens.forEach(sv => {
+                    const res = data.results[sv];
+                    const tr = document.getElementById(`row-${sv}`);
+                    if (res && res.success) {
+                        tr.style.background = '#e8f5e9';
+                        tr.innerHTML = `<td><b>${sv}</b></td>
+                                        <td><span class="status-badge" style="background:#4caf50;color:white">THÀNH CÔNG</span></td>
+                                        <td style="color:#2e7d32; font-weight:bold;">${res.message || 'Đăng ký thành công.'}</td>`;
+                    } else if (res) {
+                        tr.style.background = '#ffebee';
+                        tr.innerHTML = `<td><b>${sv}</b></td>
+                                        <td><span class="status-badge" style="background:#f44336;color:white">THẤT BẠI</span></td>
+                                        <td style="color:#c62828;">${res.message}</td>`;
+                    } else {
                         tr.style.background = '#ffebee';
                         tr.innerHTML = `<td><b>${sv}</b></td>
                                         <td><span class="status-badge" style="background:red;color:white">LỖI</span></td>
-                                        <td style="color:red;">${err.message}</td>`;
-                    });
-            });
-
-            await Promise.all(promises);
+                                        <td style="color:red;">Lỗi kết nối / Không phản hồi</td>`;
+                    }
+                });
+            } else {
+                throw new Error("Lỗi API kết nối đồng thời");
+            }
 
         } catch (err) {
             resultDiv.innerHTML = `<p style="color:red">Lỗi: ${err.message}</p>`;
