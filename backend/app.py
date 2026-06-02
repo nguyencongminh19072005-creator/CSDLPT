@@ -251,7 +251,7 @@ def api_dang_ky():
 def api_dang_ky_demo_barrier():
     import threading
     import pyodbc
-    from backend.config import Config
+    from config import Config
     
     data = request.get_json()
     ma_sv_list = data.get("ma_sv_list", [])
@@ -375,7 +375,7 @@ def api_reset_demo():
         
         # 1. Reset dữ liệu ở Trung tâm (Hà Đông) nếu mạng đang thông
         try:
-            from backend.config import Config
+            from config import Config
             cfg = Config()
             conn_hd = pyodbc.connect(cfg.hd_connection_string, autocommit=True)
             cur_hd = conn_hd.cursor()
